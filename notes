@@ -1,0 +1,60 @@
+mingw-w64
+
+Install: mingw-w64-common:amd64 (4.0.4-2, automatic), gnat-mingw-w64-x86-64:amd64 (5.3.1-3ubuntu1+16, automatic), mingw-w64-i686-dev:amd64 (4.0.4-2, automatic), gcc-mingw-w64-base:amd64 (5.3.1-8ubuntu3+17, automatic), gfortran-mingw-w64:amd64 (5.3.1-8ubuntu3+17, automatic), gcc-mingw-w64-i686:amd64 (5.3.1-8ubuntu3+17, automatic), g++-mingw-w64:amd64 (5.3.1-8ubuntu3+17, automatic), g++-mingw-w64-i686:amd64 (5.3.1-8ubuntu3+17, automatic), gcc-mingw-w64:amd64 (5.3.1-8ubuntu3+17, automatic), gfortran-mingw-w64-i686:amd64 (5.3.1-8ubuntu3+17, automatic), g++-mingw-w64-x86-64:amd64 (5.3.1-8ubuntu3+17, automatic), binutils-mingw-w64-x86-64:amd64 (2.26-3ubuntu1+6.6, automatic), mingw-w64:amd64 (4.0.4-2), mingw-w64-x86-64-dev:amd64 (4.0.4-2, automatic), gnat-mingw-w64-base:amd64 (5.3.1-3ubuntu1+16, automatic), gnat-mingw-w64-i686:amd64 (5.3.1-3ubuntu1+16, automatic), gnat-mingw-w64:amd64 (5.3.1-3ubuntu1+16, automatic), gcc-mingw-w64-x86-64:amd64 (5.3.1-8ubuntu3+17, automatic), binutils-mingw-w64-i686:amd64 (2.26-3ubuntu1+6.6, automatic), gfortran-mingw-w64-x86-64:amd64 (5.3.1-8ubuntu3+17, automatic)
+End-Date: 2022-08-09  02:37:47
+
+dpkg -L g++-mingw-w64-x86-64 | grep /bin/
+	/usr/bin/x86_64-w64-mingw32-g++-posix
+	/usr/bin/x86_64-w64-mingw32-c++-posix
+	/usr/bin/x86_64-w64-mingw32-c++-win32
+	/usr/bin/x86_64-w64-mingw32-g++-win32
+
+dpkg -L g++-mingw-w64-i686 | grep /bin/
+	/usr/bin/i686-w64-mingw32-c++-posix
+	/usr/bin/i686-w64-mingw32-c++-win32
+	/usr/bin/i686-w64-mingw32-g++-win32
+	/usr/bin/i686-w64-mingw32-g++-posix
+
+
+/usr/bin/x86_64-w64-mingw32-g++-posix
+	sizeof(size_t): 8, file: PE32+ executable (console) x86-64, for MS Windows
+	
+/usr/bin/x86_64-w64-mingw32-g++-win32
+	sizeof(size_t): 8, file: PE32+ executable (console) x86-64, for MS Windows
+	
+/usr/bin/i686-w64-mingw32-g++-win32
+	sizeof(size_t): 4, file: PE32 executable (console) Intel 80386, for MS Windows
+	
+/usr/bin/i686-w64-mingw32-g++-posix
+	sizeof(size_t): 4, file: PE32 executable (console) Intel 80386, for MS Windows
+
+"The PE32 format stands for Portable Executable 32-bit, while PE32+ is Portable Executable 64-bit format."
+ -- stackoverflow
+
+
+To share files between guest and host in Virtual Box:
+
+	Devices->Insert Guest Additions CD image
+	install
+
+	Machine->Settings->Shared Folders
+	create a new shared folder
+
+	\\VBOXSRV\<share name>
+
+on Windows:
+	pushd <share name>
+	-- to navigate to the directory using cmd
+	popd
+	-- to go back
+
+
+---
+Accessing a Shared Folder On Windows 7 From Linux
+---
+
+On Windows:
+Control Panel -> Administrative Tools -> Computer Management -> Shared Folders
+
+On Linux:
+sudo mount -t cifs -o username=eero,password=eero,uid=$(id -u),gid=$(id -g) //192.168.0.12/sharethis /mnt
