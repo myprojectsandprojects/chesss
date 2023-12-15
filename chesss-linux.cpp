@@ -164,8 +164,8 @@ int main()
 		{
 			i64 CurrentTimeUS = GetTimeUS();
 			i64 ElapsedUS = CurrentTimeUS - PreviousTimeUS;
-			i64 ElapsedMS = (i64)(((r64)ElapsedUS/1000)+0.5);
-			printf("%ld ms\n", ElapsedMS);
+			// i64 ElapsedMS = (i64)(((r64)ElapsedUS/1000)+0.5);
+			// printf("%ld ms\n", ElapsedMS);
 			PreviousTimeUS = CurrentTimeUS;
 		}
 		else
@@ -383,14 +383,20 @@ int main()
 //			SoundBuffer.CurrentFrameIndex = 0;
 //		}
 
-//		i64 TargetFrameTimeUS = 33000; // ~ 30 fps
+		i64 TargetFrameTimeUS = 33000; // ~ 30 fps
 //		i64 TargetFrameTimeUS = 17000; // ~ 60 fps
-		i64 TargetFrameTimeUS = 0;
+		// i64 TargetFrameTimeUS = 0;
 		i64 CurrentTimeUS = GetTimeUS();
 		i64 ElapsedUS = CurrentTimeUS - PreviousTimeUS;
-		if (TargetFrameTimeUS - ElapsedUS > 0)
+		// if (TargetFrameTimeUS - ElapsedUS > 0)
+		// {
+		// 	unsigned int SleepForUS = TargetFrameTimeUS - ElapsedUS; // usleep takes unsigned int
+		// 	usleep(SleepForUS);
+		// }
+		i64 Diff = TargetFrameTimeUS - ElapsedUS;
+		if (Diff > 0)
 		{
-			unsigned int SleepForUS = TargetFrameTimeUS - ElapsedUS; // usleep takes unsigned int
+			unsigned int SleepForUS = Diff; //@ usleep takes unsigned int
 			usleep(SleepForUS);
 		}
 	}

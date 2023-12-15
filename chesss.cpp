@@ -1194,7 +1194,7 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 	{
 		for (i32 X = 0; X < 8; ++X)
 		{
-			u32 TileColor = ((X + Y) % 2) ? Light : Dark;
+			u32 TileColor = ((X + Y) % 2) ? Dark : Light;
 			RenderRectangle(WindowBuffer, X * TileWidth, Y * TileHeight, TileWidth, TileHeight, TileColor);
 		}
 	}
