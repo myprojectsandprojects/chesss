@@ -1,5 +1,29 @@
 //@ dragging a piece outside of the window and then releasing the mouse button causes some weird behaviour.
 
+/*
+Todo:
+- play sound when a move is made
+- play an animation when a computer makes a move
+- highlight possible moves
+- add castling move
+- add en passant move
+- add pawn promotion move
+- recognize a draw
+	- stalemate
+	- insufficient material
+	- repetition
+	- move number (?)
+- make computer play better
+- computer moves should be evaluated in a separate thread (?)
+- possibility to start a new game and choose a color (also choose perspective?)
+- click-move a piece in addition to drag-move
+- display taken pieces somewhere
+- dont forget the Windows version!
+- add notation to the chess board (a - h and 1 - 8)
+- display an interactive list of moves next to the board
+- make window/board resizeable (?)
+*/
+
 enum playerType
 {
 	HUMAN,
@@ -1248,7 +1272,7 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 							}
 						}
 					}
-					assert(FoundMove); // If there are no moves, then the player is checkmated and we should have detected that earlier.
+					assert(FoundMove); // If there are no moves, then the player is checkmated and we should have detected that earlier. Actually it could be a stalemate as well.
 
 					WhosMove = (color) !((bool) WhosMove);
 				}

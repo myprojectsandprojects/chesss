@@ -4,8 +4,11 @@
 #include <assert.h>
 #include <time.h>
 
-#include "lib.h"
-#include "lib.cpp"
+// #include "lib.h"
+// #include "lib.cpp"
+#include "lib/lib.hpp"
+#include "lib/lib.cpp"
+#include "lib/array.hpp"
 #include "chesss.h"
 #include "renderer.cpp"
 #include "chesss.cpp"
