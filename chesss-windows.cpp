@@ -291,6 +291,19 @@ r64 GetElapsedSecs(i64 NumTicks1, i64 NumTicks2, i64 PerfFrequency)
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR pCmdLine, int nCmdShow)
 {
+	// Implement this here as well:
+	// Make sure current working directory is the directory which contains the executable. (This might not be the case when the executable is executed through a symbolic link or through a Bash-shell from a different directory)
+	const int exe_path_size = 1024; // allegedly MAX_PATH is not particularly trustworthy
+	char exe_path[exe_path_size];
+	if (!get_executable_path(exe_path, exe_path_size)) {
+		//@ error handling
+		fprintf(stderr, "failed\n");
+		return 1;
+	}
+	char *parent_path = linux_get_parent_path_noalloc(exe_path);
+	chdir(parent_path);
+	printf("Changed CWD to \"%s\"\n", parent_path);
+
 	MessageBox(NULL, "message", "title", MB_OK);
 	// To get the console window for debug messages:
 	{

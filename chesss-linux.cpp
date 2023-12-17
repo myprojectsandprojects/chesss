@@ -4,10 +4,12 @@
 #include <assert.h>
 #include <time.h>
 
-// #include "lib.h"
-// #include "lib.cpp"
+#define LIB_INCLUDE_IMPLEMENTATION
 #include "lib/lib.hpp"
-#include "lib/lib.cpp"
+
+#define LINUX_LIB_INCLUDE_IMPLEMENTATION
+#include "lib/linux_lib.hpp"
+// #include "lib/lib.cpp"
 #include "lib/array.hpp"
 #include "chesss.h"
 #include "renderer.cpp"
@@ -86,6 +88,18 @@ i64 GetTimeUS()
 
 int main()
 {
+	// Make sure current working directory is the directory which contains the executable. (This might not be the case when the executable is executed through a symbolic link or through a Bash-shell from a different directory)
+	const int exe_path_size = 1024; // allegedly MAX_PATH is not particularly trustworthy
+	char exe_path[exe_path_size];
+	if (!get_executable_path(exe_path, exe_path_size)) {
+		//@ error handling
+		fprintf(stderr, "failed\n");
+		return 1;
+	}
+	char *parent_path = get_parent_path_noalloc(exe_path);
+	chdir(parent_path);
+	printf("Changed CWD to \"%s\"\n", parent_path);
+
 	Display *Connection = XOpenDisplay(NULL);
 	Window DefaultRootWindow = XDefaultRootWindow(Connection);
 	int DefaultScreen = XDefaultScreen(Connection);

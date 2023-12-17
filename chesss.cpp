@@ -22,6 +22,8 @@ Todo:
 - add notation to the chess board (a - h and 1 - 8)
 - display an interactive list of moves next to the board
 - make window/board resizeable (?)
+
+- Should reading files and loading assets be a game thing though? The only reason why reading a file can be platform independent currently is because we use standard library for this and we expect standard library to be cross platform. The underlying api's (which are used by the standard library) differ across OS's. The file formats, like wav and bmp, are not platform dependent, so the code that parses these file formats isnt also, but its also not really part of the game logic, so maybe we should at least divide our platform independent code into game code and other code or ulility code or helper code or something?
 */
 
 enum playerType
@@ -50,9 +52,9 @@ struct move
 };
 
 //loadedSound TestSound;
-loadedSound PieceSound;
+loadedSound MoveSound;
 loadedSound CaptureSound;
-loadedSound BowlSound;
+loadedSound CheckSound;
 
 image WKingImage;
 image BKingImage;
@@ -70,6 +72,9 @@ image BPawnImage;
 //playingSound PlayingSound;
 //array<playingSound> PlayingSounds;
 playingSound *FirstPlayingSound;
+
+#include "lib/linked_list.hpp"
+lib::linkedList<playingSound *> PlayingSounds; // The only reason its a linked list is because I wanted to try out a linked list.
 
 image *Board[8 * 8];
 
@@ -870,9 +875,28 @@ void LoadSound(const char *SoundPath, loadedSound *Sound)
 
 void GameInit()
 {
-	LoadSound("bowl-sound.wav", &BowlSound);
-	LoadSound("piece-sound.wav", &PieceSound);
-	LoadSound("capture-sound.wav", &CaptureSound);
+	// const char *SoundExt = "wav";
+	// const char *SoundPrefix = "sounds/";
+	// const char *SoundPostfix = "chess-dot-com/";
+
+	// char ExeDir[MAX_PATH_LEN];
+	// PlatformGetExeDir(ExeDir, MAX_PATH_LEN);
+	// char SoundDir[MAX_PATH_LEN];
+	// snprintf(SoundDir, MAX_PATH_LEN, "%s/%s/%s", ExeDir, SoundPrefix, SoundPostfix);
+	// const char *SoundFileNames = {"move", "capture", "check"};
+	// for(int i = 0; i < sizeof(SoundFileNames) / sizeof(SoundFileNames[0]); ++i)
+	// {
+	// 	char SoundFilePath[MAX_PATH_LEN];
+	// 	snprintf(SoundFilePath, MAX_PATH_LEN, "%s/%s.%s", SoundDir, SoundFileNames[i], SoundExt);
+
+	// 	loadedSound Loaded;
+	// 	LoadSound(SoundFilePath, &Loaded);
+	// 	LoadedSoundsTable.put(SoundName, Loaded);
+	// }
+
+	LoadSound("sounds/chess-dot-com/move.wav", &MoveSound);
+	LoadSound("sounds/chess-dot-com/capture.wav", &CaptureSound);
+	LoadSound("sounds/chess-dot-com/check.wav", &CheckSound);
 
 	LoadPieceImage("images/lking.bmp", &WKingImage);
 	LoadPieceImage("images/dking.bmp", &BKingImage);
@@ -887,9 +911,9 @@ void GameInit()
 	LoadPieceImage("images/lpawn.bmp", &WPawnImage);
 	LoadPieceImage("images/dpawn.bmp", &BPawnImage);
 
-	SetUpBoard(Board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+	// SetUpBoard(Board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 //	SetUpBoard(Board, "rbBqkn2/8/8/4p3/3P4/8/8/QK4NR");
-//	SetUpBoard(Board, "p7/8/8/8/8/8/8/RP6");
+	SetUpBoard(Board, "k7/8/8/8/8/8/8/1RQ5");
 
 //	player Players[2] = {{HUMAN}, {HUMAN}};
 //	color WhosMove = WHITE;
@@ -1007,48 +1031,99 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 //	}
 
 	// MIXER THAT WORKS WITH WINDOWS AND LINUX
+
 	i16 *Dest = (i16 *) SoundBuffer->Samples;
 	for (int Counter = 0; Counter < SoundBuffer->NumSamplesWanted; ++Counter)
 	{
 		r32 SampleValueLeft = 0.0f;
 		r32 SampleValueRight = 0.0f;
-		for (playingSound *Ptr = FirstPlayingSound; Ptr;)
+		for (lib::link<playingSound *> *Ptr = PlayingSounds.Head; Ptr;)
 		{
-			if (Ptr->NumSamplesPlayed == Ptr->Sound->NumSamples)
+			playingSound *PtrSound = Ptr->Data;
+			if (PtrSound->NumSamplesPlayed == PtrSound->Sound->NumSamples)
 			{
-				if (Ptr->IsLooping)
+				if (PtrSound->IsLooping)
 				{
-					Ptr->NumSamplesPlayed = 0;
+					PtrSound->NumSamplesPlayed = 0;
 				}
 				else
 				{
-					playingSound *Previous = Ptr->Previous;
-					playingSound *Next = Ptr->Next;
-					if (Previous) Previous->Next = Next;
-					if (Next) Next->Previous = Previous;
-					free(Ptr);
-					Ptr = Next;
-					if (!Previous) FirstPlayingSound = Ptr;
+					// playingSound *Previous = Ptr->Previous;
+					// playingSound *Next = Ptr->Next;
+					// if (Previous) Previous->Next = Next;
+					// if (Next) Next->Previous = Previous;
+					// free(Ptr);
+					// Ptr = Next;
+					// if (!Previous) FirstPlayingSound = Ptr;
+					free(PtrSound); //@ is that all?
+					lib::link<playingSound *> *OldLink = Ptr;
+					Ptr = Ptr->Prev;
+					PlayingSounds.remove(OldLink);
 					continue;
 				}
 			}
-			if (Ptr->Sound->NumChannels == 1)
+			if (PtrSound->Sound->NumChannels == 1)
 			{
-				r32 SampleValue = (r32) *(((i16 *) Ptr->Sound->Samples) + Ptr->NumSamplesPlayed * 1);
+				r32 SampleValue = (r32) *(((i16 *) PtrSound->Sound->Samples) + PtrSound->NumSamplesPlayed * 1);
 				SampleValueLeft += SampleValue;
 				SampleValueRight += SampleValue;
 			}
-			else if (Ptr->Sound->NumChannels == 2)
+			else if (PtrSound->Sound->NumChannels == 2)
 			{
-				SampleValueLeft += (r32) *(((i16 *) Ptr->Sound->Samples) + Ptr->NumSamplesPlayed * 2);
-				SampleValueRight += (r32) *(((i16 *) Ptr->Sound->Samples) + Ptr->NumSamplesPlayed * 2 + 1);
+				SampleValueLeft += (r32) *(((i16 *) PtrSound->Sound->Samples) + PtrSound->NumSamplesPlayed * 2);
+				SampleValueRight += (r32) *(((i16 *) PtrSound->Sound->Samples) + PtrSound->NumSamplesPlayed * 2 + 1);
 			}
-			Ptr->NumSamplesPlayed += 1;
-			Ptr = Ptr->Next;
+			PtrSound->NumSamplesPlayed += 1;
+
+			Ptr = Ptr->Prev;
 		}
 		*Dest++ = (i16) SampleValueLeft; //@ cast?
 		*Dest++ = (i16) SampleValueRight; //@ cast?
 	}
+
+	// i16 *Dest = (i16 *) SoundBuffer->Samples;
+	// for (int Counter = 0; Counter < SoundBuffer->NumSamplesWanted; ++Counter)
+	// {
+	// 	r32 SampleValueLeft = 0.0f;
+	// 	r32 SampleValueRight = 0.0f;
+	// 	for (playingSound *Ptr = FirstPlayingSound; Ptr;)
+	// 	{
+	// 		if (Ptr->NumSamplesPlayed == Ptr->Sound->NumSamples)
+	// 		{
+	// 			if (Ptr->IsLooping)
+	// 			{
+	// 				Ptr->NumSamplesPlayed = 0;
+	// 			}
+	// 			else
+	// 			{
+	// 				playingSound *Previous = Ptr->Previous;
+	// 				playingSound *Next = Ptr->Next;
+	// 				if (Previous) Previous->Next = Next;
+	// 				if (Next) Next->Previous = Previous;
+	// 				free(Ptr);
+	// 				Ptr = Next;
+	// 				if (!Previous) FirstPlayingSound = Ptr;
+	// 				continue;
+	// 			}
+	// 		}
+	// 		if (Ptr->Sound->NumChannels == 1)
+	// 		{
+	// 			r32 SampleValue = (r32) *(((i16 *) Ptr->Sound->Samples) + Ptr->NumSamplesPlayed * 1);
+	// 			SampleValueLeft += SampleValue;
+	// 			SampleValueRight += SampleValue;
+	// 		}
+	// 		else if (Ptr->Sound->NumChannels == 2)
+	// 		{
+	// 			SampleValueLeft += (r32) *(((i16 *) Ptr->Sound->Samples) + Ptr->NumSamplesPlayed * 2);
+	// 			SampleValueRight += (r32) *(((i16 *) Ptr->Sound->Samples) + Ptr->NumSamplesPlayed * 2 + 1);
+	// 		}
+	// 		Ptr->NumSamplesPlayed += 1;
+
+	// 		Ptr = Ptr->Next;
+	// 	}
+	// 	*Dest++ = (i16) SampleValueLeft; //@ cast?
+	// 	*Dest++ = (i16) SampleValueRight; //@ cast?
+	// }
 
 	array<event> Events = Input->Events;
 	for (int I = 0; I < Events.Count; ++I)
@@ -1058,24 +1133,6 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 		{
 			case LBUTTONDOWN:
 			{
-//				playingSound TestSound = {};
-//				TestSound.Sound = &BowlSound;
-//				ArrayAdd(&PlayingSounds, TestSound);
-//				printf("ADDED SOUND!\n");
-				playingSound *PlayingSound = (playingSound *) malloc(sizeof(playingSound));
-				PlayingSound->NumSamplesPlayed = 0;
-				PlayingSound->Sound = &PieceSound;
-//				PlayingSound->Sound = &CaptureSound;
-//				PlayingSound->Sound = &BowlSound;
-				PlayingSound->IsLooping = false;
-				PlayingSound->Next = FirstPlayingSound;
-				PlayingSound->Previous = NULL;
-				if (FirstPlayingSound)
-				{
-					FirstPlayingSound->Previous = PlayingSound;
-				}
-				FirstPlayingSound = PlayingSound;
-
 				// printf("LBUTTONDOWN: X: %d, Y: %d\n", Event.X, Event.Y);
 				int DownX = Event.X / 60;
 				int DownY = Event.Y / 60;
@@ -1188,17 +1245,27 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 					// WhosMove = BLACK;
 
 					// check if it was a check / checkmate
+					bool Check = false;
+					if (IsInCheck(Board, WhosMove))
+					{
+						printf("%s is in check!\n", (WhosMove == WHITE) ? "WHITE" : "BLACK");
+						Check = true;
+					}
+					printf("%s's move...\n", (WhosMove == WHITE) ? "WHITE" : "BLACK");
+
+					// Play sound
+					playingSound *PlayingSound = (playingSound *) malloc(sizeof(playingSound));
+					PlayingSound->Sound = Check ? &CheckSound : (CapturedPiece ? &CaptureSound : &MoveSound);
+					PlayingSound->NumSamplesPlayed = 0;
+					PlayingSound->IsLooping = false;
+					PlayingSounds.append(PlayingSound);
+
 					if (IsCheckmated(Board, WhosMove))
 					{
 						printf("%s is checkmated!\n", (WhosMove == WHITE) ? "WHITE" : "BLACK");
 						GameOver = true;
 						break;
 					}
-					if (IsInCheck(Board, WhosMove))
-					{
-						printf("%s is in check!\n", (WhosMove == WHITE) ? "WHITE" : "BLACK");
-					}
-					printf("%s's move...\n", (WhosMove == WHITE) ? "WHITE" : "BLACK");
 
 					// Get computer move
 					array<move *> ComputerPossibleMoves; ArrayInit(&ComputerPossibleMoves); //@ free things
