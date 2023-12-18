@@ -1,3 +1,4 @@
+//@ chess-linux: chesss-linux.cpp:355: int main(): Assertion `LoopCount < 2' failed.
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>

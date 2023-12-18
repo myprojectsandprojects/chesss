@@ -159,15 +159,22 @@ void RenderImage(image *WindowBuffer, image *Image, i32 XPos, i32 YPos)
 			unsigned int *ImagePixel = ((unsigned int *) Image->Data) + ImageY * Image->Width + X;
 			unsigned int *WindowBufferPixel = ((unsigned int *) WindowBuffer->Data) + (Y + YPos) * WindowBuffer->Width + (X + XPos);
 
-			unsigned char ImageR = (*ImagePixel & 0x0000ff00) >> 8;
-			unsigned char ImageG = (*ImagePixel & 0x00ff0000) >> 16;
-			unsigned char ImageB = (*ImagePixel & 0xff000000) >> 24;
+			// Gimp (by default) generates channels in this order:
+			// unsigned char ImageR = (*ImagePixel & 0x0000ff00) >> 8;
+			// unsigned char ImageG = (*ImagePixel & 0x00ff0000) >> 16;
+			// unsigned char ImageB = (*ImagePixel & 0xff000000) >> 24;
+			// float Alpha = ((float) (*ImagePixel & 0x000000ff)) / 255.0f;
+
+			// // convert-im6 (imagemagick) by default generates channels in this order:
+			unsigned char ImageR = (*ImagePixel & 0x00ff0000) >> 16;
+			unsigned char ImageG = (*ImagePixel & 0x0000ff00) >> 8;
+			unsigned char ImageB = (*ImagePixel & 0x000000ff) >> 0;
+			float Alpha = ((float) ((*ImagePixel & 0xff000000) >> 24)) / 255.0f;
 			
 			unsigned char WindowBufferR = (*WindowBufferPixel & 0x00ff0000) >> 16;
 			unsigned char WindowBufferG = (*WindowBufferPixel & 0x0000ff00) >> 8;
 			unsigned char WindowBufferB = (*WindowBufferPixel & 0x000000ff) >> 0;
 					
-			float Alpha = ((float) (*ImagePixel & 0x000000ff)) / 255.0f;
 			unsigned char BlendedRed = (unsigned char) Lerp((float) WindowBufferR, (float) ImageR, Alpha);
 			unsigned char BlendedGreen = (unsigned char) Lerp((float) WindowBufferG, (float) ImageG, Alpha);
 			unsigned char BlendedBlue = (unsigned char) Lerp((float) WindowBufferB, (float) ImageB, Alpha);

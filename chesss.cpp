@@ -894,26 +894,61 @@ void GameInit()
 	// 	LoadedSoundsTable.put(SoundName, Loaded);
 	// }
 
-	LoadSound("sounds/chess-dot-com/move.wav", &MoveSound);
-	LoadSound("sounds/chess-dot-com/capture.wav", &CaptureSound);
-	LoadSound("sounds/chess-dot-com/check.wav", &CheckSound);
+	{
+	const char *ThemeDir = "chess-dot-com";
+	const int MAX_PATH_LEN = 1024; //@ something reasonable here?
+	const int BUF_LEN = MAX_PATH_LEN+1;
+	char SoundFilePath[BUF_LEN];
+	snprintf(SoundFilePath, BUF_LEN, "sounds/%s/move.wav", ThemeDir); LoadSound(SoundFilePath, &MoveSound);
+	snprintf(SoundFilePath, BUF_LEN, "sounds/%s/capture.wav", ThemeDir); LoadSound(SoundFilePath, &CaptureSound);
+	snprintf(SoundFilePath, BUF_LEN, "sounds/%s/check.wav", ThemeDir); LoadSound(SoundFilePath, &CheckSound);
+	}
 
-	LoadPieceImage("images/lking.bmp", &WKingImage);
-	LoadPieceImage("images/dking.bmp", &BKingImage);
-	LoadPieceImage("images/lqueen.bmp", &WQueenImage);
-	LoadPieceImage("images/dqueen.bmp", &BQueenImage);
-	LoadPieceImage("images/lrook.bmp", &WRookImage);
-	LoadPieceImage("images/drook.bmp", &BRookImage);
-	LoadPieceImage("images/lbishop.bmp", &WBishopImage);
-	LoadPieceImage("images/dbishop.bmp", &BBishopImage);
-	LoadPieceImage("images/lknight.bmp", &WKnightImage);
-	LoadPieceImage("images/dknight.bmp", &BKnightImage);
-	LoadPieceImage("images/lpawn.bmp", &WPawnImage);
-	LoadPieceImage("images/dpawn.bmp", &BPawnImage);
+	// LoadSound("sounds/chess-dot-com/move.wav", &MoveSound);
+	// LoadSound("sounds/chess-dot-com/capture.wav", &CaptureSound);
+	// LoadSound("sounds/chess-dot-com/check.wav", &CheckSound);
 
-	// SetUpBoard(Board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+	{
+	// const char *ThemeDir = "alpha";
+	// const char *ThemeDir = "anarcandy";
+	// const char *ThemeDir = "tatiana";
+	// const char *ThemeDir = "pixel";
+	// const char *ThemeDir = "pirouetti";
+	// const char *ThemeDir = "letter";
+	const char *ThemeDir = "chessnut";
+	const int MAX_PATH_LEN = 1024; //@ something reasonable here?
+	const int BUF_LEN = MAX_PATH_LEN+1;
+	char ImageFilePath[BUF_LEN];
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/wK.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &WKingImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/wQ.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &WQueenImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/wN.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &WKnightImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/wB.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &WBishopImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/wR.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &WRookImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/wP.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &WPawnImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/bK.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &BKingImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/bQ.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &BQueenImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/bN.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &BKnightImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/bB.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &BBishopImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/bR.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &BRookImage);
+	snprintf(ImageFilePath, BUF_LEN, "images/%s/bP.bmp", ThemeDir); LoadPieceImage(ImageFilePath, &BPawnImage);
+	}
+
+	// LoadPieceImage("images/lking.bmp", &WKingImage);
+	// LoadPieceImage("images/dking.bmp", &BKingImage);
+	// LoadPieceImage("images/lqueen.bmp", &WQueenImage);
+	// LoadPieceImage("images/dqueen.bmp", &BQueenImage);
+	// LoadPieceImage("images/lrook.bmp", &WRookImage);
+	// LoadPieceImage("images/drook.bmp", &BRookImage);
+	// LoadPieceImage("images/lbishop.bmp", &WBishopImage);
+	// LoadPieceImage("images/dbishop.bmp", &BBishopImage);
+	// LoadPieceImage("images/lknight.bmp", &WKnightImage);
+	// LoadPieceImage("images/dknight.bmp", &BKnightImage);
+	// LoadPieceImage("images/lpawn.bmp", &WPawnImage);
+	// LoadPieceImage("images/dpawn.bmp", &BPawnImage);
+
+	SetUpBoard(Board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 //	SetUpBoard(Board, "rbBqkn2/8/8/4p3/3P4/8/8/QK4NR");
-	SetUpBoard(Board, "k7/8/8/8/8/8/8/1RQ5");
+	// SetUpBoard(Board, "k7/8/8/8/8/8/8/1RQ5");
 
 //	player Players[2] = {{HUMAN}, {HUMAN}};
 //	color WhosMove = WHITE;
@@ -929,6 +964,14 @@ void GameInit()
 	// random number generator
 	// otherwise we get the same set of random numbers every time
 	srand(time(NULL));
+
+	// DEBUG:
+	// printf("%dx%d\n", BBishopImage.Width, BBishopImage.Height);
+	// unsigned int *Pixels = (unsigned int *)BBishopImage.Data;
+	// int NumPixels = BBishopImage.Width * BBishopImage.Height;
+	// for(int i = 0; i < NumPixels; ++i) {
+	// 	printf("%X ", Pixels[i]);
+	// }
 }
 
 void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
