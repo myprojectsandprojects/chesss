@@ -10,12 +10,14 @@
 
 #define LINUX_LIB_INCLUDE_IMPLEMENTATION
 #include "lib/linux_lib.hpp"
-// #include "lib/lib.cpp"
 #include "lib/array.hpp"
+
 #include "chesss.h"
-#include "renderer.cpp"
+#include "chesss-helper.cpp"
+#include "chesss-renderer.cpp"
 #include "chesss.cpp"
 
+// OS-specific headers:
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <unistd.h>

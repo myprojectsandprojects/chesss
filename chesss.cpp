@@ -22,8 +22,6 @@ Todo:
 - add notation to the chess board (a - h and 1 - 8)
 - display an interactive list of moves next to the board
 - make window/board resizeable (?)
-
-- Should reading files and loading assets be a game thing though? The only reason why reading a file can be platform independent currently is because we use standard library for this and we expect standard library to be cross platform. The underlying api's (which are used by the standard library) differ across OS's. The file formats, like wav and bmp, are not platform dependent, so the code that parses these file formats isnt also, but its also not really part of the game logic, so maybe we should at least divide our platform independent code into game code and other code or ulility code or helper code or something?
 */
 
 enum playerType
@@ -681,178 +679,9 @@ bool IsCheckmated(image *Board[], color Color)
 	return IsCheckmated;
 }
 
-bool IsStalemated(image *Board[], color Color)
+bool IsInStalemate(image *Board[], color Color)
 {
 	return false;
-}
-
-//@ data needs to be freed somehow
-bool LoadBMP(const char *FilePath, image *BMPImage)
-{
-	size_t Size;
-	u8 *Contents;
-	if (!ReadFile(FilePath, &Contents, &Size))
-	{
-		return false;
-	}
-
-	u8 *p = Contents;
-	
-	// First 2 bytes should be ASCII characters 'B' and 'M'
-	u8 b1 = *p; ++p;
-	u8 b2 = *p; ++p;
-//	printf("%c%c\n", b1, b2);
-
-	// Size of the image file in bytes
-	u32 BMPSize = *((u32 *) p); p += 4;
-	assert(BMPSize == Size);
-
-	p += 4; // Skip reserved bytes
-
-	// Offset of the image data
-	u32 Offset = *((unsigned int *) p); p += 4;
-
-	// DIB (Device Independent Bitmap) size (version of the DIB header)
-	u32 DIBSize = *((unsigned int *) p); p += 4;
-
-	// Image width and height
-	u32 Width = *((u32 *) p); p += 4;
-	u32 Height = *((u32 *) p); p += 4;
-	u16 Planes = *((u16 *) p); p += 2;
-	u16 BitsPerPixel = *((u16 *) p); p += 2;
-	BMPImage->Width = Width;
-	BMPImage->Height = Height;
-
-	BMPImage->Data = Contents + Offset;
-
-	return true;
-}
-
-bool LoadWAVFile(const char *SoundFilePath, loadedSound *Sound)
-{
-	size_t NumBytes;
-	u8 *FileContents;
-	if (!ReadFile(SoundFilePath, &FileContents, &NumBytes))
-	{
-		return false;
-	}
-
-	int ContentsIndex = 0;
-	{
-		bool Found = false;
-		const char *StrToFind = "fmt";
-		int StrToFindIndex = 0;
-		while (ContentsIndex < NumBytes)
-		{
-			while (FileContents[ContentsIndex] == StrToFind[StrToFindIndex] && ContentsIndex < NumBytes)
-			{
-				ContentsIndex += 1;
-				StrToFindIndex += 1;
-			}
-			if (StrToFind[StrToFindIndex] == '\0')
-			{
-				Found = true;
-				break;
-			}
-			else
-			{
-				StrToFindIndex = 0;
-			}
-			ContentsIndex += 1;
-		}
-		if (!Found)
-		{
-//			printf("Error: couldnt find fmt-chunk!\n");
-			return false;
-		}
-	
-//		printf("found fmt-chunk at %d\n", I);
-		ContentsIndex += 1; // trailing zero
-	}
-
-	// Length of format data
-	u32 Length = *((u32 *) &FileContents[ContentsIndex]);
-//	printf("Length of format data: %u\n", Length);
-	ContentsIndex += sizeof(u32);
-
-	// Type of format (1 is PCM)
-	u16 Type = *((u16 *) &FileContents[ContentsIndex]);
-//	printf("Type of format: %u\n", Type);
-	ContentsIndex += sizeof(u16);
-
-	// Number of channels
-	u16 NumChannels = *((u16 *) &FileContents[ContentsIndex]);
-//	printf("Number of channels: %u\n", NumChannels);
-	ContentsIndex += sizeof(u16);
-
-	// Samples per second
-	u32 SamplesPerSecond = *((u32 *) &FileContents[ContentsIndex]);
-//	printf("Samples per second: %u\n", SamplesPerSecond);
-	ContentsIndex += sizeof(u32);
-
-	ContentsIndex += 6; // jump over some uninteresting values
-
-	// Bits per sample
-	u16 BitsPerSample = *((u16 *) &FileContents[ContentsIndex]);
-//	printf("Bits per sample: %u\n", BitsPerSample);
-	ContentsIndex += sizeof(u16);
-
-	Sound->NumChannels = NumChannels;
-	Sound->BytesPerSample = BitsPerSample / 8;
-	Sound->SamplesPerSecond = SamplesPerSecond;
-
-	{
-		bool Found = false;
-		const char *StrToFind = "data";
-		int J = 0;
-		for (; ContentsIndex < NumBytes; ++ContentsIndex)
-		{
-			while (FileContents[ContentsIndex] == StrToFind[J] && ContentsIndex < NumBytes)
-			{
-				++ContentsIndex;
-				++J;
-			}
-			if (StrToFind[J] == '\0')
-			{
-				Found = true;
-				break;
-			}
-			else
-			{
-				J = 0;
-			}
-		}
-		if (!Found)
-		{
-//			printf("Error: couldnt find data-chunk!\n");
-			return false;
-		}
-	
-//		printf("found data-chunk at %d\n", I);
-	}
-
-	// File size (data)
-	u32 DataSize = *((u32 *) &FileContents[ContentsIndex]);
-//	printf("File size (data): %u\n", DataSize);
-	ContentsIndex += sizeof(u32);
-
-//	Sound->BytesPerSampleInMemory = 4;
-//
-//	printf("DataSize mod 3 = %d\n", DataSize % 3);
-//	u8 *Ptr = (u8 *) malloc(DataSize / 3 * 4);
-//	Sound->Samples = Ptr;
-//	for (int K = 0; K < DataSize / 3; ++K)
-//	{
-//		*Ptr++ = FileContents[ContentsIndex++];
-//		*Ptr++ = FileContents[ContentsIndex++];
-//		*Ptr++ = FileContents[ContentsIndex++];
-//		*Ptr++ = 0;
-//	}
-	Sound->Samples = &FileContents[ContentsIndex];
-
-	Sound->NumSamples = DataSize / (Sound->BytesPerSample * Sound->NumChannels);
-
-	return true;
 }
 
 void LoadPieceImage(const char *ImagePath, image *Image)
@@ -895,13 +724,14 @@ void GameInit()
 	// }
 
 	{
-	const char *ThemeDir = "chess-dot-com";
+	const char *ThemeDir = "standard";
+	// const char *ThemeDir = "chess-dot-com";
 	const int MAX_PATH_LEN = 1024; //@ something reasonable here?
 	const int BUF_LEN = MAX_PATH_LEN+1;
 	char SoundFilePath[BUF_LEN];
-	snprintf(SoundFilePath, BUF_LEN, "sounds/%s/move.wav", ThemeDir); LoadSound(SoundFilePath, &MoveSound);
-	snprintf(SoundFilePath, BUF_LEN, "sounds/%s/capture.wav", ThemeDir); LoadSound(SoundFilePath, &CaptureSound);
-	snprintf(SoundFilePath, BUF_LEN, "sounds/%s/check.wav", ThemeDir); LoadSound(SoundFilePath, &CheckSound);
+	snprintf(SoundFilePath, BUF_LEN, "sounds/%s/Move.wav", ThemeDir); LoadSound(SoundFilePath, &MoveSound);
+	snprintf(SoundFilePath, BUF_LEN, "sounds/%s/Capture.wav", ThemeDir); LoadSound(SoundFilePath, &CaptureSound);
+	snprintf(SoundFilePath, BUF_LEN, "sounds/%s/Check.wav", ThemeDir); LoadSound(SoundFilePath, &CheckSound);
 	}
 
 	// LoadSound("sounds/chess-dot-com/move.wav", &MoveSound);

@@ -58,3 +58,7 @@ Control Panel -> Administrative Tools -> Computer Management -> Shared Folders
 
 On Linux:
 sudo mount -t cifs -o username=eero,password=eero,uid=$(id -u),gid=$(id -g) //192.168.0.12/sharethis /mnt
+
+---
+
+ffmpeg -i Check.mp3 Check.wav

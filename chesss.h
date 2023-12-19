@@ -1,9 +1,9 @@
-struct image
-{
-	i32 Width;
-	i32 Height;
-	u8 *Data;
-};
+// struct image
+// {
+// 	i32 Width;
+// 	i32 Height;
+// 	u8 *Data;
+// };
 
 //// 'frame' includes all channels
 //struct soundBuffer
@@ -22,26 +22,26 @@ struct soundBuffer
 	void *Samples;
 };
 
-//@ does 'sample' include all channels or not?
-struct loadedSound
-{
-	int NumSamples;
-	void *Samples;
-	i32 NumChannels;
-	i32 BytesPerSample;
-	i32 SamplesPerSecond;
-//	i32 BytesPerSampleInMemory;
-};
+// //@ does 'sample' include all channels or not?
+// struct loadedSound
+// {
+// 	int NumSamples;
+// 	void *Samples;
+// 	i32 NumChannels;
+// 	i32 BytesPerSample;
+// 	i32 SamplesPerSecond;
+// //	i32 BytesPerSampleInMemory;
+// // };
 
-struct playingSound
-{
-//	int FrameIndex;
-	playingSound *Next;
-	playingSound *Previous;
-	int NumSamplesPlayed;
-	loadedSound *Sound;
-	bool IsLooping;
-};
+// struct playingSound
+// {
+// //	int FrameIndex;
+// 	playingSound *Next;
+// 	playingSound *Previous;
+// 	int NumSamplesPlayed;
+// 	loadedSound *Sound;
+// 	bool IsLooping;
+// };
 
 enum eventType
 {
