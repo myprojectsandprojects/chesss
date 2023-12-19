@@ -3,14 +3,15 @@
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
-#include <time.h>
 
 #define LIB_INCLUDE_IMPLEMENTATION
 #include "lib/lib.hpp"
 
 #define LINUX_LIB_INCLUDE_IMPLEMENTATION
 #include "lib/linux_lib.hpp"
+
 #include "lib/array.hpp"
+#include "lib/linked_list.hpp"
 
 #include "chesss.h"
 #include "chesss-helper.cpp"
@@ -405,7 +406,7 @@ int main()
 //		}
 
 		i64 TargetFrameTimeUS = 33000; // ~ 30 fps
-//		i64 TargetFrameTimeUS = 17000; // ~ 60 fps
+		// i64 TargetFrameTimeUS = 17000; // ~ 60 fps
 		// i64 TargetFrameTimeUS = 0;
 		i64 CurrentTimeUS = GetTimeUS();
 		i64 ElapsedUS = CurrentTimeUS - PreviousTimeUS;

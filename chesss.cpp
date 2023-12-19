@@ -69,9 +69,8 @@ image BPawnImage;
 
 //playingSound PlayingSound;
 //array<playingSound> PlayingSounds;
-playingSound *FirstPlayingSound;
+// playingSound *FirstPlayingSound;
 
-#include "lib/linked_list.hpp"
 lib::linkedList<playingSound *> PlayingSounds; // The only reason its a linked list is because I wanted to try out a linked list.
 
 image *Board[8 * 8];
@@ -84,6 +83,36 @@ int DraggedPiecePixelY;
 
 color WhosMove;
 bool GameOver;
+
+// animation test
+int AnimTotalFrames;
+int AnimFramesDone;
+int AnimStartX;
+int AnimStartY;
+int AnimEndX;
+int AnimEndY;
+double AnimCurrentX;
+double AnimCurrentY;
+double AnimDX;
+double AnimDY;
+image *AnimPiece;
+
+// animation test
+void PlayAnimation(int FromX, int FromY, int ToX, int ToY, image *Piece)
+{
+	AnimTotalFrames = 4;
+	AnimFramesDone = 0;
+	AnimStartX = FromX;
+	AnimStartY = FromY;
+	AnimEndX = ToX;
+	AnimEndY = ToY;
+	AnimCurrentX = AnimStartX * 60;
+	AnimCurrentY = AnimStartY * 60;
+	AnimDX = (AnimEndX - AnimStartX) / (double)AnimTotalFrames;
+	AnimDY = (AnimEndY - AnimStartY) / (double)AnimTotalFrames;
+	AnimPiece = Piece;
+	// printf("dx: %f, dy: %f\n", AnimDX, AnimDY);
+}
 
 move *NewMove(int FromX, int FromY, int ToX, int ToY)
 {
@@ -1007,14 +1036,14 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 			case LBUTTONDOWN:
 			{
 				// printf("LBUTTONDOWN: X: %d, Y: %d\n", Event.X, Event.Y);
-				int DownX = Event.X / 60;
-				int DownY = Event.Y / 60;
-				int BoardIndex = DownY * 8 + DownX;
+				int BoardX = Event.X / 60;
+				int BoardY = Event.Y / 60;
+				int BoardIndex = BoardY * 8 + BoardX;
 				if (Board[BoardIndex])
 				{
 					IsDraggedPiece = true;
-					DraggedPieceX = DownX;
-					DraggedPieceY = DownY;
+					DraggedPieceX = BoardX;
+					DraggedPieceY = BoardY;
 //					DraggedPiecePixelX = ButtonEvent.x - 60 / 2;
 //					DraggedPiecePixelY = ButtonEvent.y - 60 / 2;
 
@@ -1032,6 +1061,12 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 //					{
 //						free(DraggedPieceAvailableMoves.Data[I]);
 //					}
+
+					if (AnimFramesDone < AnimTotalFrames)
+					{
+						IsDraggedPiece = false;
+						break;
+					}
 
 					int BoardIndex = DraggedPieceY * 8 + DraggedPieceX;
 					image *DraggedPiece = Board[BoardIndex];
@@ -1086,7 +1121,6 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 							break;
 						}
 					}
-
 					if (!CanMakeMove)
 					{
 						IsDraggedPiece = false;
@@ -1181,6 +1215,11 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 						}
 						else
 						{
+							image *Piece = Board[PlausableMove->ToY * 8 + PlausableMove->ToX];
+							Board[PlausableMove->ToY * 8 + PlausableMove->ToX] = CapturedPiece; // if there was a captured piece, put it back
+
+							PlayAnimation(PlausableMove->FromX, PlausableMove->FromY, PlausableMove->ToX, PlausableMove->ToY, Piece);
+
 							FoundMove = true;
 							break;
 						}
@@ -1207,6 +1246,11 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 							}
 							else
 							{
+								image *Piece = Board[PlausableMove->ToY * 8 + PlausableMove->ToX];
+								Board[PlausableMove->ToY * 8 + PlausableMove->ToX] = CapturedPiece; // if there was a captured piece, put it back
+
+								PlayAnimation(PlausableMove->FromX, PlausableMove->FromY, PlausableMove->ToX, PlausableMove->ToY, Piece);
+
 								FoundMove = true;
 								break;
 							}
@@ -1214,7 +1258,7 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 					}
 					assert(FoundMove); // If there are no moves, then the player is checkmated and we should have detected that earlier. Actually it could be a stalemate as well.
 
-					WhosMove = (color) !((bool) WhosMove);
+					// WhosMove = (color) !((bool) WhosMove);
 				}
 			}
 			break;
@@ -1260,7 +1304,7 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 		{
 			if (Board[Y * 8 + X] && !(IsDraggedPiece && DraggedPieceX == X && DraggedPieceY == Y))
 			{
-				RenderImage(WindowBuffer, Board[Y * 8 + X], X * 60, Y * 60);
+					RenderImage(WindowBuffer, Board[Y * 8 + X], X * 60, Y * 60);
 			}
 		}
 	}
@@ -1280,5 +1324,20 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 		if (IsDraggedPiece)
 		{
 			RenderImage(WindowBuffer, Board[DraggedPieceY * 8 + DraggedPieceX], MouseX - 30, MouseY - 30);
+		}
+
+		// animation test
+		if (AnimFramesDone < AnimTotalFrames)
+		{
+			printf("animation in progress (%d, x: %f, y: %f)\n", AnimFramesDone, AnimCurrentX, AnimCurrentY);
+			RenderImage(WindowBuffer, AnimPiece, (int)AnimCurrentX, (int)AnimCurrentY);
+			AnimCurrentX += AnimDX * 60;
+			AnimCurrentY += AnimDY * 60;
+			AnimFramesDone += 1;
+			if (AnimFramesDone == AnimTotalFrames)
+			{
+				Board[AnimEndY * 8 + AnimEndX] = AnimPiece;
+				WhosMove = (color) !((bool) WhosMove);
+			}
 		}
 }
