@@ -4,6 +4,7 @@
 Todo:
 - play sound when a move is made
 - play an animation when a computer makes a move
+- if there is no animation, there is really no need to render frames (?)
 - highlight possible moves
 - add castling move
 - add en passant move
@@ -74,6 +75,40 @@ image BPawnImage;
 lib::linkedList<playingSound *> PlayingSounds; // The only reason its a linked list is because I wanted to try out a linked list.
 
 image *Board[8 * 8];
+
+// enum castlingType {
+// 	WHITE_KINGSIDE = 0,
+// 	WHITE_QUEENSIDE = 1,
+// 	BLACK_KINGSIDE = 2,
+// 	BLACK_QUEENSIDE = 3
+// };
+
+// directly translated from fen
+struct gameState {
+	// image *Board[8][8];
+
+	// color ActiveColor; // who's move
+
+	// bool CastlingOptions[4]; // use 'castlingType' to access
+	struct {
+		bool WhiteKingside;
+		bool WhiteQueenside;
+		bool BlackKingside;
+		bool BlackQueenside;
+	} CastlingOptions;
+
+	// this is a square behind a pawn that has moved 2 squares
+	// if any of the opponents pawns can capture at this square, then they can capture the pawn
+	// but the capture can only happen in the next move
+	// this square only exists during the opponents move
+	struct {
+		bool Exists;
+		int X, Y;
+	} EnPassantSquare;
+
+	int HalfmoveCounter; // 50-move rule
+	int CurrentMoveNumber;
+};
 
 bool IsDraggedPiece;
 int DraggedPieceX;
@@ -1054,6 +1089,7 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 			case LBUTTONUP:
 			{
 				// printf("LBUTTONUP X: %d, Y: %d\n", Event.X, Event.Y);
+
 				if (IsDraggedPiece)
 				{
 //					DraggedPieceAvailableMoves.Count = 0;
@@ -1085,6 +1121,7 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 					}
 
 					// Player put the piece back to its original square.
+					//@ should probably be handled by GetMoves(), its just not one of the possible moves
 					if (ReleasedX == DraggedPieceX && ReleasedY == DraggedPieceY)
 					{
 						IsDraggedPiece = false;
@@ -1126,6 +1163,19 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 						IsDraggedPiece = false;
 						break;
 					}
+
+					// // Alternative way to get moves:
+					//@ I think that's better
+					// unless there is some reason we want an array
+					// moveInfoSomething Moves[8][8]; // y, x
+					// GetMoveInfo(&GameState, PieceX, PieceY, Moves)
+					// maybe we want more info about the move
+					// also moves we cant make might also include why
+					// if(Moves[UpY][UpX]) {
+					// 	// can make the move
+					// } else {
+					// 	// nope
+					// }
 
 					// make the move
 					image *CapturedPiece = Board[ReleasedY * 8 + ReleasedX];
@@ -1176,7 +1226,7 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 
 					// Get computer move
 					array<move *> ComputerPossibleMoves; ArrayInit(&ComputerPossibleMoves); //@ free things
-				
+
 					for (int Y = 0; Y < 8; ++Y)
 					{
 						for (int X = 0; X < 8; ++X)
@@ -1320,24 +1370,24 @@ void GameUpdate(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 //			RenderRectangle(Pixels, X, Y, SquareWidth, SquareHeight, 0x00ff0000);
 //		}
 
-		// If we have a dragged piece, render it
-		if (IsDraggedPiece)
-		{
-			RenderImage(WindowBuffer, Board[DraggedPieceY * 8 + DraggedPieceX], MouseX - 30, MouseY - 30);
-		}
+	// If we have a dragged piece, render it
+	if (IsDraggedPiece)
+	{
+		RenderImage(WindowBuffer, Board[DraggedPieceY * 8 + DraggedPieceX], MouseX - 30, MouseY - 30);
+	}
 
-		// animation test
-		if (AnimFramesDone < AnimTotalFrames)
+	// animation test
+	if (AnimFramesDone < AnimTotalFrames)
+	{
+		printf("animation in progress (%d, x: %f, y: %f)\n", AnimFramesDone, AnimCurrentX, AnimCurrentY);
+		RenderImage(WindowBuffer, AnimPiece, (int)AnimCurrentX, (int)AnimCurrentY);
+		AnimCurrentX += AnimDX * 60;
+		AnimCurrentY += AnimDY * 60;
+		AnimFramesDone += 1;
+		if (AnimFramesDone == AnimTotalFrames)
 		{
-			printf("animation in progress (%d, x: %f, y: %f)\n", AnimFramesDone, AnimCurrentX, AnimCurrentY);
-			RenderImage(WindowBuffer, AnimPiece, (int)AnimCurrentX, (int)AnimCurrentY);
-			AnimCurrentX += AnimDX * 60;
-			AnimCurrentY += AnimDY * 60;
-			AnimFramesDone += 1;
-			if (AnimFramesDone == AnimTotalFrames)
-			{
-				Board[AnimEndY * 8 + AnimEndX] = AnimPiece;
-				WhosMove = (color) !((bool) WhosMove);
-			}
+			Board[AnimEndY * 8 + AnimEndX] = AnimPiece;
+			WhosMove = (color) !((bool) WhosMove);
 		}
+	}
 }

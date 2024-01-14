@@ -251,13 +251,13 @@ int main()
 //				}
 				case ButtonPress:
 				{
-					XButtonEvent ButtonEvent = e.xbutton;
-					if (ButtonEvent.button == 1)
+					XButtonEvent *ButtonEvent = (XButtonEvent *)&e.xbutton;
+					if (ButtonEvent->button == 1)
 					{
 						event Event;
 						Event.Type = LBUTTONDOWN;
-						Event.X = ButtonEvent.x;
-						Event.Y = ButtonEvent.y;
+						Event.X = ButtonEvent->x;
+						Event.Y = ButtonEvent->y;
 						ArrayAdd(&GameInput.Events, Event);
 					}
 					break;
