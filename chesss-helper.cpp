@@ -107,8 +107,12 @@ bool LoadWAVFile(const char *FilePath, loadedSound *Sound)
 	printf("read %s (%lu bytes)\n", FilePath, NumBytes);
 
 	int32_t offset;
-	if(!find_bytes((uint8_t const *)"fmt ", 4, FileContents, NumBytes, &offset))
-	{
+	// if(!find_bytes((uint8_t const *)"fmt ", 4, FileContents, NumBytes, &offset))
+	// {
+	// 	fprintf(stderr, "error: LoadWAVFile: couldnt find fmt-chunk!\n");
+	// 	return false;
+	// }
+	if((offset = forward_find_bm(FileContents, NumBytes, (const uint8_t *)"fmt", c_str_len("fmt"))) == -1) {
 		fprintf(stderr, "error: LoadWAVFile: couldnt find fmt-chunk!\n");
 		return false;
 	}
@@ -133,9 +137,13 @@ bool LoadWAVFile(const char *FilePath, loadedSound *Sound)
 	printf("BlockAlign: %u\n", BlockAlign);
 	printf("BitsPerSample: %u\n", BitsPerSample);
 
-	if(!find_bytes((uint8_t const *)"data", 4, FileContents, NumBytes, &offset))
-	{
-		fprintf(stderr, "error: LoadWAVFile: couldnt find data-chunk!\n");
+	// if(!find_bytes((uint8_t const *)"data", 4, FileContents, NumBytes, &offset))
+	// {
+	// 	fprintf(stderr, "error: LoadWAVFile: couldnt find data-chunk!\n");
+	// 	return false;
+	// }
+	if((offset = forward_find_bm(FileContents, NumBytes, (const uint8_t *)"data", c_str_len("data"))) == -1) {
+		fprintf(stderr, "error: LoadWAVFile: couldnt find fmt-chunk!\n");
 		return false;
 	}
 	printf("found data-chunk at %d\n", offset);
