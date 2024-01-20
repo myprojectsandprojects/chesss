@@ -227,8 +227,8 @@ int main()
 			{
 				case Expose:
 				{
-					printf("Expose event!\n");
-//					XPutImage(Connection, W, GraphicsContext, Pixels, 0, 0, 0, 0, Pixels->width, Pixels->height);
+					// printf("Expose event!\n");
+					// XPutImage(Connection, W, GraphicsContext, Pixels, 0, 0, 0, 0, Pixels->width, Pixels->height);
 					break;
 				}
 				case ClientMessage:

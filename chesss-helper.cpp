@@ -119,53 +119,51 @@ bool LoadWAVFile(const char *FilePath, loadedSound *Sound)
 	printf("read %s (%lu bytes)\n", FilePath, NumBytes);
 
 	int32_t offset;
-	// if(!find_bytes((uint8_t const *)"fmt ", 4, FileContents, NumBytes, &offset))
-	// {
-	// 	fprintf(stderr, "error: LoadWAVFile: couldnt find fmt-chunk!\n");
-	// 	return false;
-	// }
 	if((offset = forward_find_bm(FileContents, NumBytes, (const uint8_t *)"fmt", c_str_len("fmt"))) == -1) {
+		//@free 'FileContents'?
 		fprintf(stderr, "error: LoadWAVFile: couldnt find fmt-chunk!\n");
 		return false;
 	}
-	printf("found fmt-chunk at %d\n", offset);
+	// printf("found fmt-chunk at %d\n", offset);
 
 	u8 *Ptr = FileContents + offset;
 	Ptr += 4;
 
-	u32 FmtChunkSize = *((u32 *)Ptr); Ptr += sizeof(u32);
-	u16 AudioFormat = *((u16 *)Ptr); Ptr += sizeof(u16);
-	u16 NumChannels = *((u16 *)Ptr); Ptr += sizeof(u16);
-	u32 SampleRate = *((u32 *)Ptr); Ptr += sizeof(u32);
-	u32 ByteRate = *((u32 *)Ptr); Ptr += sizeof(u32);
-	u16 BlockAlign = *((u16 *)Ptr); Ptr += sizeof(u16);
-	u16 BitsPerSample = *((u16 *)Ptr); Ptr += sizeof(u16);
+	// u32 FmtChunkSize = *((u32 *)Ptr);
+	Ptr += sizeof(u32);
+	// u16 AudioFormat = *((u16 *)Ptr);
+	Ptr += sizeof(u16);
+	u16 NumChannels = *((u16 *)Ptr);
+	Ptr += sizeof(u16);
+	u32 SampleRate = *((u32 *)Ptr);
+	Ptr += sizeof(u32);
+	// u32 ByteRate = *((u32 *)Ptr);
+	Ptr += sizeof(u32);
+	// u16 BlockAlign = *((u16 *)Ptr);
+	Ptr += sizeof(u16);
+	u16 BitsPerSample = *((u16 *)Ptr);
+	Ptr += sizeof(u16);
 
-	printf("FmtChunkSize: %u\n", FmtChunkSize);
-	printf("AudioFormat: %u\n", AudioFormat);
-	printf("NumChannels: %u\n", NumChannels);
-	printf("SampleRate: %u\n", SampleRate);
-	printf("ByteRate: %u\n", ByteRate);
-	printf("BlockAlign: %u\n", BlockAlign);
-	printf("BitsPerSample: %u\n", BitsPerSample);
+	// printf("FmtChunkSize: %u\n", FmtChunkSize);
+	// printf("AudioFormat: %u\n", AudioFormat);
+	// printf("NumChannels: %u\n", NumChannels);
+	// printf("SampleRate: %u\n", SampleRate);
+	// printf("ByteRate: %u\n", ByteRate);
+	// printf("BlockAlign: %u\n", BlockAlign);
+	// printf("BitsPerSample: %u\n", BitsPerSample);
 
-	// if(!find_bytes((uint8_t const *)"data", 4, FileContents, NumBytes, &offset))
-	// {
-	// 	fprintf(stderr, "error: LoadWAVFile: couldnt find data-chunk!\n");
-	// 	return false;
-	// }
 	if((offset = forward_find_bm(FileContents, NumBytes, (const uint8_t *)"data", c_str_len("data"))) == -1) {
 		fprintf(stderr, "error: LoadWAVFile: couldnt find fmt-chunk!\n");
 		return false;
 	}
-	printf("found data-chunk at %d\n", offset);
+	// printf("found data-chunk at %d\n", offset);
 
 	Ptr = FileContents + offset;
 	Ptr += 4;
 
 	u32 DataChunkSize = *((u32 *)Ptr); // the rest of it (samples)
 	Ptr += 4;
-	printf("DataChunkSize: %u\n", DataChunkSize);
+	// printf("DataChunkSize: %u\n", DataChunkSize);
 
 	int BytesPerSample = BitsPerSample / 8; // 32-bit unsigned / 32-bit signed. this is no good. in reality BitsPerSample / 8 is not going to overflow BytesPerSample because it would have to be greater than 2,147,483,647. but in some other situations it might matter and I dont really know what the right thing to do is.
 	Sound->NumSamples = DataChunkSize / BytesPerSample / NumChannels; //@ here, for example, we might actually exceed the capacity of NumSamples which is signed 32-bit.

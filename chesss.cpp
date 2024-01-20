@@ -131,9 +131,6 @@ int DraggedPieceY;
 int DraggedPiecePixelX;
 int DraggedPiecePixelY;
 
-// color WhosMove;
-// bool GameOver;
-
 // animation test
 int AnimTotalFrames;
 int AnimFramesDone;
@@ -150,7 +147,8 @@ image *AnimPiece;
 // animation test
 void PlayAnimation(move *Move, image *Piece)
 {
-	AnimTotalFrames = 4;
+	AnimTotalFrames = 64;
+	// AnimTotalFrames = 4;
 	AnimFramesDone = 0;
 	AnimStartX = Move->FromX;
 	AnimStartY = Move->FromY;
@@ -220,6 +218,30 @@ void SetUpBoard(image *Board[], const char *Fen)
 			}
 		}
 	}
+}
+
+color GetColor(image *Piece)
+{
+	assert(Piece == &WKingImage
+		|| Piece == &BKingImage
+		|| Piece == &WQueenImage
+		|| Piece == &BQueenImage
+		|| Piece == &WRookImage
+		|| Piece == &BRookImage
+		|| Piece == &WBishopImage
+		|| Piece == &BBishopImage
+		|| Piece == &WKnightImage
+		|| Piece == &BKnightImage
+		|| Piece == &WPawnImage
+		|| Piece == &BPawnImage);
+
+	return (Piece == &WKingImage
+		|| Piece == &WQueenImage
+		|| Piece == &WRookImage
+		|| Piece == &WBishopImage
+		|| Piece == &WKnightImage
+		|| Piece == &WPawnImage)
+		? WHITE : BLACK;
 }
 
 bool IsWhitePiece(image *Piece)
@@ -784,6 +806,10 @@ void LoadSound(const char *SoundPath, loadedSound *Sound)
 
 void InitApp()
 {
+	// printf("BKingImage: %s\n", (GetColor(&BKingImage) == BLACK) ? "black" : "white");
+	// printf("WKingImage: %s\n", (GetColor(&WKingImage) == BLACK) ? "black" : "white");
+	// printf("nonsense: %s\n", (GetColor((image *)&MoveSound) == BLACK) ? "black" : "white");
+
 	// const char *SoundExt = "wav";
 	// const char *SoundPrefix = "sounds/";
 	// const char *SoundPostfix = "chess-dot-com/";
@@ -878,8 +904,8 @@ void StartGame(app *App)
 	gameState *GameState = &App->GameState;
 
 //	SetUpBoard(Board, "rbBqkn2/8/8/4p3/3P4/8/8/QK4NR");
-	SetUpBoard((image **)GameState->Board, "k7/8/8/8/8/8/8/1RQ5");
-	// SetUpBoard((image **)GameState->Board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+	// SetUpBoard((image **)GameState->Board, "k7/8/8/8/8/8/8/1RQ5");
+	SetUpBoard((image **)GameState->Board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 	GameState->ActiveColor = WHITE;
 
 	// App->Players = {{playerType_HUMAN}, {playerType_HUMAN}};
@@ -924,10 +950,11 @@ void UpdatePreGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ 
 	RenderRectangle(WindowBuffer, 0, 0, WindowBuffer->Width, WindowBuffer->Height, Color);
 }
 
-void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ userInput *Input)
+void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 {
+	// printf("ActiveColor: %d\n", (int)App->GameState.ActiveColor);
+
 	gameState *GameState = &App->GameState;
-	color WhosMove = GameState->ActiveColor;
 	image **Board = (image **)GameState->Board;
 
 	array<event> Events = Input->Events;
@@ -967,11 +994,11 @@ void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ use
 //					}
 
 					//@ I think, we should just check if its our turn
-					if (AnimFramesDone < AnimTotalFrames)
-					{
-						IsDraggedPiece = false;
-						break;
-					}
+					// if (AnimFramesDone < AnimTotalFrames)
+					// {
+					// 	IsDraggedPiece = false;
+					// 	break;
+					// }
 
 					int BoardIndex = DraggedPieceY * 8 + DraggedPieceX;
 					image *DraggedPiece = Board[BoardIndex];
@@ -979,15 +1006,8 @@ void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ use
 
 					int ReleasedX = Event.X / 60;
 					int ReleasedY = Event.Y / 60;
-					assert(ReleasedX < 8 && ReleasedY < 8);
-					assert(ReleasedX >= 0 && ReleasedY >= 0);
-
-					// if (GameOver)
-					// {
-					// 	printf("Game is over!\n");
-					// 	IsDraggedPiece = false;
-					// 	break;
-					// }
+					// assert(ReleasedX < 8 && ReleasedY < 8);
+					// assert(ReleasedX >= 0 && ReleasedY >= 0);
 
 					// Player put the piece back to its original square.
 					//@ should probably be handled by GetMoves(), its just not one of the possible moves
@@ -998,10 +1018,11 @@ void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ use
 					}
 
 					// Player moved a piece, but its not their turn (it was of wrong color)
-					if ((IsWhitePiece(DraggedPiece) && WhosMove == BLACK) || (IsBlackPiece(DraggedPiece) && WhosMove == WHITE))
+					if(GetColor(DraggedPiece) != GameState->ActiveColor)
 					{
 						const char *Color = (App->GameState.ActiveColor == WHITE) ? "WHITE" : "BLACK";
 						printf("%s's move!\n", Color);
+						printf("!!!!!!!\n");
 
 						IsDraggedPiece = false;
 						break;
@@ -1051,13 +1072,13 @@ void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ use
 					Board[ReleasedY * 8 + ReleasedX] = Board[DraggedPieceY * 8 + DraggedPieceX];
 					Board[DraggedPieceY * 8 + DraggedPieceX] = NULL;
 
-					if (IsInCheck(Board, WhosMove))
+					if (IsInCheck(Board, GameState->ActiveColor))
 					{
 						// take the move back
 						Board[DraggedPieceY * 8 + DraggedPieceX] = Board[ReleasedY * 8 + ReleasedX];
 						Board[ReleasedY * 8 + ReleasedX] = CapturedPiece; // if there was a captured piece, put it back
 
-						const char *Color = (WhosMove == WHITE) ? "WHITE" : "BLACK";
+						const char *Color = (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK";
 						printf("%s is in check!\n", Color);
 
 						IsDraggedPiece = false;
@@ -1066,18 +1087,16 @@ void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ use
 
 					IsDraggedPiece = false;
 
-					WhosMove = (color) !((bool) WhosMove);
-					// WhosMove = (WhosMove == BLACK) ? WHITE : BLACK;
-					// WhosMove = BLACK;
+					GameState->ActiveColor = (color) !((bool) GameState->ActiveColor);
 
 					// check if it was a check / checkmate
 					bool Check = false;
-					if (IsInCheck(Board, WhosMove))
+					if (IsInCheck(Board, GameState->ActiveColor))
 					{
-						printf("%s is in check!\n", (WhosMove == WHITE) ? "WHITE" : "BLACK");
+						printf("%s is in check!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
 						Check = true;
 					}
-					printf("%s's move...\n", (WhosMove == WHITE) ? "WHITE" : "BLACK");
+					printf("%s's move...\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
 
 					// Play sound
 					playingSound *PlayingSound = (playingSound *) malloc(sizeof(playingSound));
@@ -1086,10 +1105,9 @@ void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ use
 					PlayingSound->IsLooping = false;
 					PlayingSounds.append(PlayingSound);
 
-					if (IsCheckmated(Board, WhosMove))
+					if (IsCheckmated(Board, GameState->ActiveColor))
 					{
-						printf("%s is checkmated!\n", (WhosMove == WHITE) ? "WHITE" : "BLACK");
-						// GameOver = true;
+						printf("%s is checkmated!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
 						App->Mode = appMode_POSTGAME;
 						break;
 					}
@@ -1130,7 +1148,7 @@ void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ use
 						Board[PlausableMove->ToY * 8 + PlausableMove->ToX] = Board[PlausableMove->FromY * 8 + PlausableMove->FromX];
 						Board[PlausableMove->FromY * 8 + PlausableMove->FromX] = NULL;
 
-						if (IsInCheck(Board, WhosMove))
+						if (IsInCheck(Board, GameState->ActiveColor))
 						{
 							// take the move back
 							Board[PlausableMove->FromY * 8 + PlausableMove->FromX] = Board[PlausableMove->ToY * 8 + PlausableMove->ToX];
@@ -1149,8 +1167,6 @@ void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ use
 					assert(ComputerMove && MovedPiece);
 
 					PlayAnimation(ComputerMove, MovedPiece);
-
-					// // WhosMove = (color) !((bool) WhosMove);
 				}
 				else
 				{
@@ -1214,7 +1230,7 @@ void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ use
 	// animation test
 	if (AnimFramesDone < AnimTotalFrames)
 	{
-		printf("animation in progress (%d, x: %f, y: %f)\n", AnimFramesDone, AnimCurrentX, AnimCurrentY);
+		// printf("animation in progress (%d, x: %f, y: %f)\n", AnimFramesDone, AnimCurrentX, AnimCurrentY);
 		RenderImage(WindowBuffer, AnimPiece, (int)AnimCurrentX, (int)AnimCurrentY);
 		AnimCurrentX += AnimDX * 60;
 		AnimCurrentY += AnimDY * 60;
@@ -1222,7 +1238,7 @@ void UpdateGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ use
 		if (AnimFramesDone == AnimTotalFrames)
 		{
 			Board[AnimEndY * 8 + AnimEndX] = AnimPiece;
-			WhosMove = (color) !((bool) WhosMove);
+			GameState->ActiveColor = (color) !((bool) GameState->ActiveColor);
 		}
 	}
 }
