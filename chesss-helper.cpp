@@ -41,30 +41,42 @@ bool LoadBMP(const char *FilePath, image *BMPImage)
 	u8 *p = Contents;
 	
 	// First 2 bytes should be ASCII characters 'B' and 'M'
-	u8 b1 = *p; ++p;
-	u8 b2 = *p; ++p;
+	// u8 b1 = *p;
+	++p;
+	// u8 b2 = *p;
+	++p;
 //	printf("%c%c\n", b1, b2);
 
 	// Size of the image file in bytes
-	u32 BMPSize = *((u32 *) p); p += 4;
+	u32 BMPSize = *((u32 *) p);
+	p += 4;
 	assert(BMPSize == Size);
 
 	p += 4; // Skip reserved bytes
 
 	// Offset of the image data
-	u32 Offset = *((unsigned int *) p); p += 4;
+	u32 Offset = *((unsigned int *) p);
+	p += 4;
 
 	// DIB (Device Independent Bitmap) size (version of the DIB header)
-	u32 DIBSize = *((unsigned int *) p); p += 4;
+	// u32 DIBSize = *((unsigned int *) p);
+	p += 4;
 
 	// Image width and height
-	u32 Width = *((u32 *) p); p += 4;
-	u32 Height = *((u32 *) p); p += 4;
-	u16 Planes = *((u16 *) p); p += 2;
-	u16 BitsPerPixel = *((u16 *) p); p += 2;
+	u32 Width = *((u32 *) p);
+	p += 4;
+
+	u32 Height = *((u32 *) p);
+	p += 4;
+
+	// u16 Planes = *((u16 *) p);
+	p += 2;
+	
+	// u16 BitsPerPixel = *((u16 *) p);
+	p += 2;
+
 	BMPImage->Width = Width;
 	BMPImage->Height = Height;
-
 	BMPImage->Data = Contents + Offset;
 
 	return true;

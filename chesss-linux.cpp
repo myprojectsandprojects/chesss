@@ -1,4 +1,8 @@
+
 //@ chess-linux: chesss-linux.cpp:355: int main(): Assertion `LoopCount < 2' failed.
+
+// OS-agnostic stuff (general):
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -16,9 +20,18 @@
 #include "chesss.h"
 #include "chesss-helper.cpp"
 #include "chesss-renderer.cpp"
-#include "chesss.cpp"
 
-// OS-specific headers:
+
+// OS-specific stuff (available to the game):
+//...
+
+// OS-agnostic stuff (game):
+
+#include "chesss.cpp" // can further divide into smaller files
+
+
+// OS-specific stuff:
+
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <unistd.h>
@@ -26,6 +39,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <alsa/asoundlib.h>
+
 
 // 8 squares, each square 60*60 pixels because 60*60 are the dimensions of our piece images.
 i32 WindowWidth = 60 * 8;
@@ -109,7 +123,7 @@ int main()
 	int DefaultScreen = XDefaultScreen(Connection);
 	Visual *DefaultVisual = XDefaultVisual(Connection, DefaultScreen);
 	int DefaultDepth = XDefaultDepth(Connection, DefaultScreen);
-	int DisplayPlanes = XDisplayPlanes(Connection, DefaultScreen);
+	// int DisplayPlanes = XDisplayPlanes(Connection, DefaultScreen);
 
 //	u8 *Data = (u8 *) malloc(4 * WindowWidth * WindowHeight);
 //	image VideoBuffer = {WindowWidth, WindowHeight, Data};
@@ -176,7 +190,7 @@ int main()
 //	SoundBuffer.CurrentFrameIndex = 0;
 //	SoundBuffer.PreviousFrameIndex = 0;
 
-	GameInit();
+	InitApp();
 
 	i64 PreviousTimeUS;
 	u64 FrameCount = 0; // when does this "roll over" back to 0 again?
@@ -185,7 +199,7 @@ int main()
 		if (FrameCount > 0)
 		{
 			i64 CurrentTimeUS = GetTimeUS();
-			i64 ElapsedUS = CurrentTimeUS - PreviousTimeUS;
+			// i64 ElapsedUS = CurrentTimeUS - PreviousTimeUS;
 			// i64 ElapsedMS = (i64)(((r64)ElapsedUS/1000)+0.5);
 			// printf("%ld ms\n", ElapsedMS);
 			PreviousTimeUS = CurrentTimeUS;
@@ -220,29 +234,35 @@ int main()
 				case ClientMessage:
 				{
 					XClientMessageEvent Message = e.xclient;
-					if (Message.data.l[0] == Protocols[DeleteWindowMessage])
+					if (Message.data.l[0] == SafeUnsignedToSigned(Protocols[DeleteWindowMessage]))
 					{
 						printf("ClientMessage (WM_DELETE_WINDOW) event!\n");
 						Running = false;
 					}
-					else if (Message.data.l[0] == Protocols[TakeFocusMessage])
+					else if (Message.data.l[0] == SafeUnsignedToSigned(Protocols[TakeFocusMessage]))
 					{
 						printf("ClientMessage (WM_TAKE_FOCUS) event!\n");
 					}
 					break;
 				}
-//				case KeyPress:
-//				{
-//					XKeyEvent KeyEvent = e.xkey;
-//					printf("KeyPress [keycode: %u]\n", KeyEvent.keycode);
-//
-//					// UP: 111, DOWN: 116, LEFT: 113, RIGHT: 114
-//					if (KeyEvent.keycode == 111) Y -= 10;
-//					if (KeyEvent.keycode == 116) Y += 10;
-//					if (KeyEvent.keycode == 113) X -= 10;
-//					if (KeyEvent.keycode == 114) X += 10;
-//					break;
-//				}
+				case KeyPress:
+				{
+					XKeyEvent KeyEvent = e.xkey;
+					printf("KeyPress [keycode: %u]\n", KeyEvent.keycode);
+
+					// // UP: 111, DOWN: 116, LEFT: 113, RIGHT: 114
+					// if (KeyEvent.keycode == 111) Y -= 10;
+					// if (KeyEvent.keycode == 116) Y += 10;
+					// if (KeyEvent.keycode == 113) X -= 10;
+					// if (KeyEvent.keycode == 114) X += 10;
+
+					event Event;
+					Event.Type = KEYPRESS;
+					Event.KeyCode = KeyEvent.keycode;
+					ArrayAdd(&GameInput.Events, Event);
+
+					break;
+				}
 //				case KeyRelease:
 //				{
 //					XKeyEvent KeyEvent = e.xkey;
@@ -309,7 +329,7 @@ int main()
 //		SoundBuffer.NumSamplesWanted = 1600;
 		SoundBuffer.Samples = malloc(SoundBuffer.NumSamplesWanted * 2 * NumChannels);
 
-		GameUpdate(&VideoBuffer, &SoundBuffer, &GameInput);
+		UpdateApp(&VideoBuffer, &SoundBuffer, &GameInput);
 //		GameInput.Events.Count = 0;
 		free(GameInput.Events.Data);
 		XPutImage(Connection, W, GraphicsContext, Pixels, 0, 0, 0, 0, Pixels->width, Pixels->height);

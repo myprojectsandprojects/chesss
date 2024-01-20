@@ -46,7 +46,8 @@ struct soundBuffer
 enum eventType
 {
 	LBUTTONDOWN,
-	LBUTTONUP
+	LBUTTONUP,
+	KEYPRESS
 };
 
 struct event
@@ -54,6 +55,7 @@ struct event
 	eventType Type;
 	i32 X;
 	i32 Y;
+	unsigned int KeyCode;
 };
 
 //event *EventNew(eventType Type, i32 X, i32 Y)
