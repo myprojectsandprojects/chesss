@@ -47,6 +47,8 @@ enum color
 struct player
 {
 	playerType PlayerType;
+
+	bool ComputerCalculateMove;
 };
 
 struct move
@@ -55,6 +57,7 @@ struct move
 	int FromY;
 	int ToX;
 	int ToY;
+	// int X0, Y0, X1, Y1;
 };
 
 //loadedSound TestSound;
@@ -62,6 +65,8 @@ loadedSound MoveSound;
 loadedSound CaptureSound;
 loadedSound CheckSound;
 
+//@ could store these in such a way that we could figure out the color by comparing memory addresses (?)
+// "The C++ standard guarantees that the members of a class or struct appear in memory in the same order as they are declared."
 image WKingImage;
 image BKingImage;
 image WQueenImage;
@@ -80,6 +85,29 @@ image BPawnImage;
 // playingSound *FirstPlayingSound;
 
 lib::linkedList<playingSound *> PlayingSounds; // The only reason its a linked list is because I wanted to try out a linked list.
+
+// bool IsDraggedPiece;
+// int DraggedPieceX;
+// int DraggedPieceY;
+// // int DraggedPiecePixelX;
+// // int DraggedPiecePixelY;
+
+struct animation
+{
+	int DurationFrames; // both initialized to 0, so not playing
+	int ProgressFrames;
+
+	int StartX;
+	int StartY;
+	int EndX;
+	int EndY;
+	image *Piece;
+
+	double X, Y;
+	double DX, DY;
+
+	move Move;
+};
 
 // image *Board[8 * 8];
 
@@ -123,43 +151,37 @@ struct app
 
 	gameState GameState;
 	player Players[2];
+
+	int TileWidth, TileHeight;
+
+	bool IsDraggedPiece;
+	struct {
+		int BoardX, BoardY;
+	} DraggedPiece;
+
+	animation *PlayingAnimation; // just 1 for now
+	animation Animation;
 } App;
 
-bool IsDraggedPiece;
-int DraggedPieceX;
-int DraggedPieceY;
-int DraggedPiecePixelX;
-int DraggedPiecePixelY;
-
-// animation test
-int AnimTotalFrames;
-int AnimFramesDone;
-int AnimStartX;
-int AnimStartY;
-int AnimEndX;
-int AnimEndY;
-double AnimCurrentX;
-double AnimCurrentY;
-double AnimDX;
-double AnimDY;
-image *AnimPiece;
-
-// animation test
-void PlayAnimation(move *Move, image *Piece)
+void MakeAnimation(app *App, animation *A, move Move, image *Piece)
 {
-	AnimTotalFrames = 64;
-	// AnimTotalFrames = 4;
-	AnimFramesDone = 0;
-	AnimStartX = Move->FromX;
-	AnimStartY = Move->FromY;
-	AnimEndX = Move->ToX;
-	AnimEndY = Move->ToY;
-	AnimCurrentX = AnimStartX * 60;
-	AnimCurrentY = AnimStartY * 60;
-	AnimDX = (AnimEndX - AnimStartX) / (double)AnimTotalFrames;
-	AnimDY = (AnimEndY - AnimStartY) / (double)AnimTotalFrames;
-	AnimPiece = Piece;
-	// printf("dx: %f, dy: %f\n", AnimDX, AnimDY);
+	// A->DurationFrames = 64;
+	A->DurationFrames = 4;
+	A->ProgressFrames = 0;
+
+	A->StartX = Move.FromX * App->TileWidth;
+	A->StartY = Move.FromY * App->TileHeight;
+	A->EndX = Move.ToX * App->TileWidth;
+	A->EndY = Move.ToY * App->TileHeight;
+
+	A->DX = (A->EndX - A->StartX) / (double)A->DurationFrames;
+	A->DY = (A->EndY - A->StartY) / (double)A->DurationFrames;
+
+	A->X = A->StartX;
+	A->Y = A->StartY;
+
+	A->Piece = Piece;
+	A->Move = Move;
 }
 
 move *NewMove(int FromX, int FromY, int ToX, int ToY)
@@ -170,6 +192,28 @@ move *NewMove(int FromX, int FromY, int ToX, int ToY)
 	Move->ToX = ToX;
 	Move->ToY = ToY;
 	return Move;
+}
+
+// more exotic moves: en passant, castling, pawn promotion
+// later on, should updating move counters, castling rights etc. also be done here?
+image *MakeMove(gameState *GameState, move *Move)
+{
+	image *PossibleCapturedPiece = GameState->Board[Move->ToY][Move->ToX];
+	GameState->Board[Move->ToY][Move->ToX] = GameState->Board[Move->FromY][Move->FromX];
+	GameState->Board[Move->FromY][Move->FromX] = NULL;
+
+	return PossibleCapturedPiece;
+}
+
+void UnmakeMove(gameState *GameState, move *Move, image *PossibleCapturedPiece)
+{
+	GameState->Board[Move->FromY][Move->FromX] = GameState->Board[Move->ToY][Move->ToX];
+	GameState->Board[Move->ToY][Move->ToX] = PossibleCapturedPiece;
+}
+
+void SwitchTurn(gameState *GameState)
+{
+	GameState->ActiveColor = (color)(~GameState->ActiveColor & 1);
 }
 
 // FEN: [PLACEMENT] [MOVE] [CASTLING] [EN PASSANT] [# of HALFMOVES] [# of FULLMOVES]
@@ -220,7 +264,7 @@ void SetUpBoard(image *Board[], const char *Fen)
 	}
 }
 
-color GetColor(image *Piece)
+color GetPieceColor(image *Piece)
 {
 	assert(Piece == &WKingImage
 		|| Piece == &BKingImage
@@ -700,8 +744,7 @@ bool IsInCheck(image *Board[], color Color)
 {
 	bool IsCheck = false;
 
-	array<move *> OpponentsPossibleMoves;
-	ArrayInit(&OpponentsPossibleMoves);
+	array<move *> OpponentsPossibleMoves; ArrayInit(&OpponentsPossibleMoves);
 
 	bool (*IsOpponentsPiece) (image *) = (Color == WHITE) ? IsBlackPiece : IsWhitePiece;
 	image *OwnKing = (Color == WHITE) ? &WKingImage : &BKingImage;
@@ -804,11 +847,476 @@ void LoadSound(const char *SoundPath, loadedSound *Sound)
 	}
 }
 
+void StartGame(app *App)
+{
+	printf("%s called\n", __FUNCTION__);
+
+	gameState *GameState = &App->GameState;
+
+//	SetUpBoard(Board, "rbBqkn2/8/8/4p3/3P4/8/8/QK4NR");
+	// SetUpBoard((image **)GameState->Board, "k7/8/8/8/8/8/8/1RQ5");
+	SetUpBoard((image **)GameState->Board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+	GameState->ActiveColor = WHITE;
+
+	// white
+	player Player1 = {playerType_COMPUTER, true}; App->Players[0] = Player1;
+	// black
+	player Player2 = {playerType_COMPUTER, false}; App->Players[1] = Player2;
+
+	// // white
+	// player Player1 = {playerType_HUMAN, true}; App->Players[0] = Player1;
+	// // black
+	// player Player2 = {playerType_HUMAN, false}; App->Players[1] = Player2;
+
+	// // white
+	// player Player1 = {playerType_HUMAN, true}; App->Players[0] = Player1;
+	// // black
+	// player Player2 = {playerType_COMPUTER, false}; App->Players[1] = Player2;
+
+	// // white
+	// player Player1 = {playerType_COMPUTER, true}; App->Players[0] = Player1;
+	// // black
+	// player Player2 = {playerType_HUMAN, false}; App->Players[1] = Player2;
+}
+
+void UpdatePreGame(app *App, image *WindowBuffer, userInput *Input)
+{
+	array<event> Events = Input->Events;
+	for (int I = 0; I < Events.Count; ++I)
+	{
+		event Event = Events.Data[I];
+		switch (Event.Type)
+		{
+			case LBUTTONDOWN:
+			{
+				printf("pregame: LBUTTONDOWN: X: %d, Y: %d\n", Event.X, Event.Y);
+			}
+			break;
+			case LBUTTONUP:
+			{
+				printf("pregame: LBUTTONUP: X: %d, Y: %d\n", Event.X, Event.Y);
+			}
+			break;
+			case KEYPRESS:
+			{
+				printf("pregame: KEYPRESS: keycode: %u\n", Event.KeyCode);
+
+				App->Mode = appMode_GAME;
+				StartGame(App);
+			}
+			break;
+			default:
+				assert(false);
+		}
+	}
+
+	uint32_t Color = 0xffff0000;
+	RenderRectangle(WindowBuffer, 0, 0, WindowBuffer->Width, WindowBuffer->Height, Color);
+}
+
+void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
+{
+	// printf("ActiveColor: %d\n", (int)App->GameState.ActiveColor);
+
+	gameState *GameState = &App->GameState;
+
+	array<event> Events = Input->Events;
+	for (int I = 0; I < Events.Count; ++I)
+	{
+		event Event = Events.Data[I];
+		switch (Event.Type)
+		{
+			case LBUTTONDOWN:
+			{
+				// printf("LBUTTONDOWN: X: %d, Y: %d\n", Event.X, Event.Y);
+				int DownX = Event.X / App->TileWidth;
+				int DownY = Event.Y / App->TileHeight;
+				if (GameState->Board[DownY][DownX])
+				{
+					App->IsDraggedPiece = true;
+					App->DraggedPiece.BoardX = DownX;
+					App->DraggedPiece.BoardY = DownY;
+
+//					GetMovesForPiece(Board, PressedX, PressedY, &DraggedPieceAvailableMoves);
+				}
+			}
+			break;
+			case LBUTTONUP:
+			{
+				// printf("LBUTTONUP X: %d, Y: %d\n", Event.X, Event.Y);
+
+				if (App->IsDraggedPiece)
+				{
+//					DraggedPieceAvailableMoves.Count = 0;
+//					for (int I = 0; I < DraggedPieceAvailableMoves.Count; ++I)
+//					{
+//						free(DraggedPieceAvailableMoves.Data[I]);
+//					}
+
+					int UpX = Event.X / App->TileWidth;
+					int UpY = Event.Y / App->TileHeight;
+					// assert(UpX < 8 && UpY < 8);
+					// assert(UpX >= 0 && UpY >= 0);
+
+					move AttemptedMove;
+					AttemptedMove.FromX = App->DraggedPiece.BoardX;
+					AttemptedMove.FromY = App->DraggedPiece.BoardY;
+					AttemptedMove.ToX = UpX;
+					AttemptedMove.ToY = UpY;
+
+					// Player put the piece back to its original square.
+					//@ should probably be handled by GetMoves(), its just not one of the possible moves
+					if (UpX == App->DraggedPiece.BoardX && UpY == App->DraggedPiece.BoardY)
+					{
+						App->IsDraggedPiece = false;
+						break;
+					}
+
+					// Human attempted to make a move, but the move should be made by a computer
+					if(App->Players[GameState->ActiveColor].PlayerType == playerType_COMPUTER)
+					{
+						printf("Next move should be made by a computer!\n");
+						App->IsDraggedPiece = false;
+						break;
+					}
+
+					image *DraggedPiece = GameState->Board[App->DraggedPiece.BoardY][App->DraggedPiece.BoardX];
+
+					// Player moved a piece, but its not their turn (it was of wrong color)
+					if(GetPieceColor(DraggedPiece) != GameState->ActiveColor)
+					{
+						const char *Color = (App->GameState.ActiveColor == WHITE) ? "WHITE" : "BLACK";
+						printf("%s's move!\n", Color);
+
+						App->IsDraggedPiece = false;
+						break;
+					}
+
+					// What are the possible moves?
+					array<move *> PossibleMoves; ArrayInit(&PossibleMoves);
+					GetMovesForPiece((image **)GameState->Board, App->DraggedPiece.BoardX, App->DraggedPiece.BoardY, &PossibleMoves); //@ free things
+//					for (int I = 0; I < PossibleMoves.Count; ++I)
+//					{
+//						move *PossibleMove = PossibleMoves.Data[I];
+//						printf("POSSIBLE MOVE: %d, %d\n", PossibleMove->ToX, PossibleMove->ToY);
+//					}
+
+					// Is our move a possible move?
+					bool CanMakeMove = false;
+					for (int I = 0; I < PossibleMoves.Count; ++I)
+					{
+						move *PossibleMove = PossibleMoves.Data[I];
+						if (PossibleMove->ToX == AttemptedMove.ToX && PossibleMove->ToY == AttemptedMove.ToY)
+						{
+							assert(PossibleMove->FromX == AttemptedMove.FromX);
+							assert(PossibleMove->FromY == AttemptedMove.FromY);
+							CanMakeMove = true;
+							break;
+						}
+					}
+					if (!CanMakeMove)
+					{
+						printf("not a legal move!\n");
+						App->IsDraggedPiece = false;
+						break;
+					}
+
+					// // Alternative way to get moves:
+					//@ I think that's better
+					// unless there is some reason we want an array
+					// moveInfoSomething Moves[8][8]; // y, x
+					// GetMoveInfo(&GameState, PieceX, PieceY, Moves)
+					// maybe we want more info about the move
+					// also moves we cant make might also include why
+					// if(Moves[UpY][UpX]) {
+					// 	// can make the move
+					// } else {
+					// 	// nope
+					// }
+
+					image *PossibleCapturedPiece = MakeMove(GameState, &AttemptedMove);
+
+					if (IsInCheck((image **)GameState->Board, GameState->ActiveColor))
+					{
+						// The user attempted a move that leaves their king in check.
+						// Play some sound / animation maybe.
+
+						UnmakeMove(GameState, &AttemptedMove, PossibleCapturedPiece);
+
+						const char *Color = (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK";
+						printf("this move would leave %s in check!\n", Color);
+
+						App->IsDraggedPiece = false;
+						break;
+					}
+
+					App->IsDraggedPiece = false;
+
+					SwitchTurn(GameState);
+
+					// gameOver GameOver = IsGameOver(App->GameState)
+					// if(GameOver)
+					// {
+					// 	if(GameOver == gameOver_CHECKMATE)
+					// 	{
+					// 		//
+					// 	}
+					// 	// if(GameOver == gameOver_STALEMATE) {}
+					// 	// if(GameOver == gameOver_INSUFFICIENT_MATERIAL) {}
+					// 	// if(GameOver == gameOver_FIFTYTH_MOVE_RULE) {}
+					// 	// if(GameOver == gameOver_THREEFOLD_REPETITION_RULE) {}
+					// }
+					// else
+					// {
+					// 	//
+					// }
+
+					// The opponent could be a computer or a human. If human, then this will be ignored:
+					App->Players[GameState->ActiveColor].ComputerCalculateMove = true;
+
+					// check if it was a check / checkmate
+					bool Check = false;
+					if (IsInCheck((image **)GameState->Board, GameState->ActiveColor))
+					{
+						printf("%s is in check!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
+						Check = true;
+					}
+					printf("%s's move...\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
+
+					// Play sound
+					playingSound *PlayingSound = (playingSound *) malloc(sizeof(playingSound));
+					PlayingSound->Sound = Check ? &CheckSound : (PossibleCapturedPiece ? &CaptureSound : &MoveSound);
+					PlayingSound->NumSamplesPlayed = 0;
+					PlayingSound->IsLooping = false;
+					PlayingSounds.append(PlayingSound);
+
+					if (IsCheckmated((image **)GameState->Board, GameState->ActiveColor))
+					{
+						printf("%s is checkmated!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
+						App->Mode = appMode_POSTGAME;
+						break;
+					}
+				}
+				else
+				{
+					printf("MOUSE BUTTON UP, no dragged piece\n");
+				}
+			}
+			break;
+			default:
+			{
+				assert(false);
+			}
+		}
+	}
+
+	// Computer's move.
+	player *ActivePlayer = &App->Players[GameState->ActiveColor];
+	if(ActivePlayer->PlayerType == playerType_COMPUTER)
+	{
+		if(ActivePlayer->ComputerCalculateMove)
+		{
+			// Pick random move.
+			move *ComputerMove = NULL;
+			image *MovedPiece  = NULL;
+
+			// Get computer move
+			array<move *> ComputerPossibleMoves; ArrayInit(&ComputerPossibleMoves); //@ free things
+
+			for (int Y = 0; Y < 8; ++Y)
+			{
+				for (int X = 0; X < 8; ++X)
+				{
+					image *Piece = GameState->Board[Y][X];
+					if (Piece && (GetPieceColor(Piece) == GameState->ActiveColor))
+					{
+						GetMovesForPiece((image **)GameState->Board, X, Y, &ComputerPossibleMoves);
+					}
+				}
+			}
+
+			// Generate random index
+			assert(ComputerPossibleMoves.Count > 0); // mod by 0 is undefined
+			int RandIndex = ((unsigned int)rand()) % (ComputerPossibleMoves.Count);
+			printf("RandIndex: %d, ComputerPossibleMoves.Count: %d\n", RandIndex, ComputerPossibleMoves.Count);
+			assert(0 <= RandIndex && RandIndex < ComputerPossibleMoves.Count);
+
+			for(int i = 0; i < ComputerPossibleMoves.Count; ++i)
+			{
+				int Index = (RandIndex + i) % ComputerPossibleMoves.Count;
+				move *PlausableMove = ComputerPossibleMoves.Data[Index];
+
+				image *PossibleCapturedPiece = MakeMove(GameState, PlausableMove);
+				if (IsInCheck((image **)GameState->Board, GameState->ActiveColor))
+				{
+					UnmakeMove(GameState, PlausableMove, PossibleCapturedPiece);
+					
+					continue;
+				}
+
+				UnmakeMove(GameState, PlausableMove, PossibleCapturedPiece);
+				
+				ComputerMove = PlausableMove;
+				MovedPiece = GameState->Board[PlausableMove->FromY][PlausableMove->FromX];
+
+				break;
+			}
+
+			// assert(ComputerMove && MovedPiece);
+
+			ActivePlayer->ComputerCalculateMove = false;
+
+			App->PlayingAnimation = &App->Animation;
+			MakeAnimation(App, App->PlayingAnimation, *ComputerMove, MovedPiece);
+			GameState->Board[ComputerMove->FromY][ComputerMove->FromX] = NULL;
+		}
+
+
+		// // time ->
+		// // [calc move] -> [simulate thinking] -> [animate move] -> and finally make the move
+	}
+
+	// Render background
+	u32 Light = 0x00efd9b7;
+	u32 Dark = 0x00b58965;
+	u32 TileWidth = WindowBuffer->Width / 8;
+	u32 TileHeight = WindowBuffer->Height / 8;
+	for (i32 Y = 0; Y < 8; ++Y)
+	{
+		for (i32 X = 0; X < 8; ++X)
+		{
+			u32 TileColor = ((X + Y) % 2) ? Dark : Light;
+			RenderRectangle(WindowBuffer, X * TileWidth, Y * TileHeight, TileWidth, TileHeight, TileColor);
+		}
+	}
+
+	// Render pieces
+	for (int Y = 0; Y < 8; ++Y)
+	{
+		for (int X = 0; X < 8; ++X)
+		{
+			if (GameState->Board[Y][X] && !(App->IsDraggedPiece && App->DraggedPiece.BoardX == X && App->DraggedPiece.BoardY == Y))
+			{
+				RenderImage(WindowBuffer, GameState->Board[Y][X], X * 60, Y * 60);
+			}
+		}
+	}
+
+//		// highlight available squares for dragged piece
+//		for (int I = 0; I < DraggedPieceAvailableMoves.Count; ++I)
+//		{
+//			move *Move = DraggedPieceAvailableMoves.Data[I];
+//			int SquareWidth = 20;
+//			int SquareHeight = 20;
+//			int X = Move->ToX * TileWidth + TileWidth / 2 - SquareWidth / 2;
+//			int Y = Move->ToY * TileHeight + TileHeight / 2 - SquareHeight / 2;
+//			RenderRectangle(Pixels, X, Y, SquareWidth, SquareHeight, 0x00ff0000);
+//		}
+
+	i32 MouseX = Input->LastMouseX;
+	i32 MouseY = Input->LastMouseY;
+//	printf("MouseX: %d, MouseY: %d\n", MouseX, MouseY);
+	// If we have a dragged piece, render it
+	if (App->IsDraggedPiece)
+	{
+		RenderImage(WindowBuffer, GameState->Board[App->DraggedPiece.BoardY][App->DraggedPiece.BoardX], MouseX - 30, MouseY - 30);
+	}
+
+	if (App->PlayingAnimation)
+	{
+		animation* A = App->PlayingAnimation;
+		assert(A->ProgressFrames < A->DurationFrames);
+
+		// printf("animation in progress (%d, x: %f, y: %f)\n", AnimFramesDone, AnimCurrentX, AnimCurrentY);
+		RenderImage(WindowBuffer, A->Piece, (int)A->X, (int)A->Y);
+
+		
+		A->ProgressFrames += 1;
+
+		if (A->ProgressFrames < A->DurationFrames)
+		{
+			A->X += A->DX;
+			A->Y += A->DY;
+		}
+		else
+		{
+			assert(A->ProgressFrames == A->DurationFrames);
+
+			App->PlayingAnimation = NULL;
+
+			GameState->Board[A->Move.FromY][A->Move.FromX] = A->Piece;
+			image *PossibleCapturedPiece = MakeMove(GameState, &A->Move);
+
+			SwitchTurn(GameState);
+
+			player *Opponent = &App->Players[GameState->ActiveColor];
+			Opponent->ComputerCalculateMove = true; // if human, then ignored
+
+			// check if it was a check
+			bool Check = false;
+			if (IsInCheck((image **)GameState->Board, GameState->ActiveColor))
+			{
+				printf("%s is in check!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
+				Check = true;
+			}
+
+			printf("%s's move...\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
+
+			// Play sound
+			playingSound *PlayingSound = (playingSound *) malloc(sizeof(playingSound));
+			PlayingSound->Sound = Check ? &CheckSound : (PossibleCapturedPiece ? &CaptureSound : &MoveSound);
+			PlayingSound->NumSamplesPlayed = 0;
+			PlayingSound->IsLooping = false;
+			PlayingSounds.append(PlayingSound);
+
+			if (IsCheckmated((image **)GameState->Board, GameState->ActiveColor))
+			{
+				printf("%s is in checkmate!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
+
+				App->Mode = appMode_POSTGAME;
+			}
+		}
+	}
+}
+
+void UpdatePostGame(app *App, image *WindowBuffer, userInput *Input)
+{
+	array<event> Events = Input->Events;
+	for (int I = 0; I < Events.Count; ++I)
+	{
+		event Event = Events.Data[I];
+		switch (Event.Type)
+		{
+			case LBUTTONDOWN:
+			{
+				printf("pregame: LBUTTONDOWN: X: %d, Y: %d\n", Event.X, Event.Y);
+			}
+			break;
+			case LBUTTONUP:
+			{
+				printf("pregame: LBUTTONUP: X: %d, Y: %d\n", Event.X, Event.Y);
+			}
+			break;
+			case KEYPRESS:
+			{
+				printf("pregame: KEYPRESS: keycode: %u\n", Event.KeyCode);
+
+				App->Mode = appMode_PREGAME;
+			}
+			break;
+			default:
+				assert(false);
+		}
+	}
+
+	uint32_t Color = 0xff00ff00;
+	RenderRectangle(WindowBuffer, 0, 0, WindowBuffer->Width, WindowBuffer->Height, Color);
+}
+
 void InitApp()
 {
-	// printf("BKingImage: %s\n", (GetColor(&BKingImage) == BLACK) ? "black" : "white");
-	// printf("WKingImage: %s\n", (GetColor(&WKingImage) == BLACK) ? "black" : "white");
-	// printf("nonsense: %s\n", (GetColor((image *)&MoveSound) == BLACK) ? "black" : "white");
+	App.TileWidth = 60;
+	App.TileHeight = 60;
 
 	// const char *SoundExt = "wav";
 	// const char *SoundPrefix = "sounds/";
@@ -895,386 +1403,6 @@ void InitApp()
 	srand(time(NULL));
 
 	App.Mode = appMode_PREGAME;
-}
-
-void StartGame(app *App)
-{
-	printf("%s called\n", __FUNCTION__);
-
-	gameState *GameState = &App->GameState;
-
-//	SetUpBoard(Board, "rbBqkn2/8/8/4p3/3P4/8/8/QK4NR");
-	// SetUpBoard((image **)GameState->Board, "k7/8/8/8/8/8/8/1RQ5");
-	SetUpBoard((image **)GameState->Board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-	GameState->ActiveColor = WHITE;
-
-	// App->Players = {{playerType_HUMAN}, {playerType_HUMAN}};
-	player Player1 = {playerType_HUMAN};
-	App->Players[0] = Player1;
-	player Player2 = {playerType_HUMAN};
-	App->Players[1] = Player2;
-}
-
-void UpdatePreGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer,*/ userInput *Input)
-{
-	array<event> Events = Input->Events;
-	for (int I = 0; I < Events.Count; ++I)
-	{
-		event Event = Events.Data[I];
-		switch (Event.Type)
-		{
-			case LBUTTONDOWN:
-			{
-				printf("pregame: LBUTTONDOWN: X: %d, Y: %d\n", Event.X, Event.Y);
-			}
-			break;
-			case LBUTTONUP:
-			{
-				printf("pregame: LBUTTONUP: X: %d, Y: %d\n", Event.X, Event.Y);
-			}
-			break;
-			case KEYPRESS:
-			{
-				printf("pregame: KEYPRESS: keycode: %u\n", Event.KeyCode);
-
-				App->Mode = appMode_GAME;
-				StartGame(App);
-			}
-			break;
-			default:
-				assert(false);
-		}
-	}
-
-	uint32_t Color = 0xffff0000;
-	RenderRectangle(WindowBuffer, 0, 0, WindowBuffer->Width, WindowBuffer->Height, Color);
-}
-
-void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
-{
-	// printf("ActiveColor: %d\n", (int)App->GameState.ActiveColor);
-
-	gameState *GameState = &App->GameState;
-	image **Board = (image **)GameState->Board;
-
-	array<event> Events = Input->Events;
-	for (int I = 0; I < Events.Count; ++I)
-	{
-		event Event = Events.Data[I];
-		switch (Event.Type)
-		{
-			case LBUTTONDOWN:
-			{
-				// printf("LBUTTONDOWN: X: %d, Y: %d\n", Event.X, Event.Y);
-				int BoardX = Event.X / 60;
-				int BoardY = Event.Y / 60;
-				int BoardIndex = BoardY * 8 + BoardX;
-				if (Board[BoardIndex])
-				{
-					IsDraggedPiece = true;
-					DraggedPieceX = BoardX;
-					DraggedPieceY = BoardY;
-//					DraggedPiecePixelX = ButtonEvent.x - 60 / 2;
-//					DraggedPiecePixelY = ButtonEvent.y - 60 / 2;
-
-//					GetMovesForPiece(Board, PressedX, PressedY, &DraggedPieceAvailableMoves);
-				}
-			}
-			break;
-			case LBUTTONUP:
-			{
-				// printf("LBUTTONUP X: %d, Y: %d\n", Event.X, Event.Y);
-
-				if (IsDraggedPiece)
-				{
-//					DraggedPieceAvailableMoves.Count = 0;
-//					for (int I = 0; I < DraggedPieceAvailableMoves.Count; ++I)
-//					{
-//						free(DraggedPieceAvailableMoves.Data[I]);
-//					}
-
-					//@ I think, we should just check if its our turn
-					// if (AnimFramesDone < AnimTotalFrames)
-					// {
-					// 	IsDraggedPiece = false;
-					// 	break;
-					// }
-
-					int BoardIndex = DraggedPieceY * 8 + DraggedPieceX;
-					image *DraggedPiece = Board[BoardIndex];
-					// image *DraggedPiece = Board[DraggedPieceY][DraggeedPieceX];
-
-					int ReleasedX = Event.X / 60;
-					int ReleasedY = Event.Y / 60;
-					// assert(ReleasedX < 8 && ReleasedY < 8);
-					// assert(ReleasedX >= 0 && ReleasedY >= 0);
-
-					// Player put the piece back to its original square.
-					//@ should probably be handled by GetMoves(), its just not one of the possible moves
-					if (ReleasedX == DraggedPieceX && ReleasedY == DraggedPieceY)
-					{
-						IsDraggedPiece = false;
-						break;
-					}
-
-					// Player moved a piece, but its not their turn (it was of wrong color)
-					if(GetColor(DraggedPiece) != GameState->ActiveColor)
-					{
-						const char *Color = (App->GameState.ActiveColor == WHITE) ? "WHITE" : "BLACK";
-						printf("%s's move!\n", Color);
-						printf("!!!!!!!\n");
-
-						IsDraggedPiece = false;
-						break;
-					}
-
-					// What are the possible moves?
-					array<move *> PossibleMoves; ArrayInit(&PossibleMoves);
-					GetMovesForPiece(Board, DraggedPieceX, DraggedPieceY, &PossibleMoves); //@ free things
-//					for (int I = 0; I < PossibleMoves.Count; ++I)
-//					{
-//						move *PossibleMove = PossibleMoves.Data[I];
-//						printf("POSSIBLE MOVE: %d, %d\n", PossibleMove->ToX, PossibleMove->ToY);
-//					}
-
-					// Is our move a possible move?
-					bool CanMakeMove = false;
-					for (int I = 0; I < PossibleMoves.Count; ++I)
-					{
-						move *PossibleMove = PossibleMoves.Data[I];
-						if (PossibleMove->ToX == ReleasedX && PossibleMove->ToY == ReleasedY)
-						{
-							CanMakeMove = true;
-							break;
-						}
-					}
-					if (!CanMakeMove)
-					{
-						IsDraggedPiece = false;
-						break;
-					}
-
-					// // Alternative way to get moves:
-					//@ I think that's better
-					// unless there is some reason we want an array
-					// moveInfoSomething Moves[8][8]; // y, x
-					// GetMoveInfo(&GameState, PieceX, PieceY, Moves)
-					// maybe we want more info about the move
-					// also moves we cant make might also include why
-					// if(Moves[UpY][UpX]) {
-					// 	// can make the move
-					// } else {
-					// 	// nope
-					// }
-
-					// make the move
-					image *CapturedPiece = Board[ReleasedY * 8 + ReleasedX];
-					Board[ReleasedY * 8 + ReleasedX] = Board[DraggedPieceY * 8 + DraggedPieceX];
-					Board[DraggedPieceY * 8 + DraggedPieceX] = NULL;
-
-					if (IsInCheck(Board, GameState->ActiveColor))
-					{
-						// take the move back
-						Board[DraggedPieceY * 8 + DraggedPieceX] = Board[ReleasedY * 8 + ReleasedX];
-						Board[ReleasedY * 8 + ReleasedX] = CapturedPiece; // if there was a captured piece, put it back
-
-						const char *Color = (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK";
-						printf("%s is in check!\n", Color);
-
-						IsDraggedPiece = false;
-						break;
-					}
-
-					IsDraggedPiece = false;
-
-					GameState->ActiveColor = (color) !((bool) GameState->ActiveColor);
-
-					// check if it was a check / checkmate
-					bool Check = false;
-					if (IsInCheck(Board, GameState->ActiveColor))
-					{
-						printf("%s is in check!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
-						Check = true;
-					}
-					printf("%s's move...\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
-
-					// Play sound
-					playingSound *PlayingSound = (playingSound *) malloc(sizeof(playingSound));
-					PlayingSound->Sound = Check ? &CheckSound : (CapturedPiece ? &CaptureSound : &MoveSound);
-					PlayingSound->NumSamplesPlayed = 0;
-					PlayingSound->IsLooping = false;
-					PlayingSounds.append(PlayingSound);
-
-					if (IsCheckmated(Board, GameState->ActiveColor))
-					{
-						printf("%s is checkmated!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
-						App->Mode = appMode_POSTGAME;
-						break;
-					}
-
-					// Pick random move.
-					move *ComputerMove = NULL;
-					image *MovedPiece  = NULL;
-
-					// Get computer move
-					array<move *> ComputerPossibleMoves; ArrayInit(&ComputerPossibleMoves); //@ free things
-
-					for (int Y = 0; Y < 8; ++Y)
-					{
-						for (int X = 0; X < 8; ++X)
-						{
-							int BoardIndex = Y * 8 + X;
-							if (Board[BoardIndex] && IsBlackPiece(Board[BoardIndex]))
-							{
-								GetMovesForPiece(Board, X, Y, &ComputerPossibleMoves);
-							}
-						}
-					}
-
-					// Generate random index
-					assert(ComputerPossibleMoves.Count > 0); // mod by 0 is undefined
-					int RandIndex = ((unsigned int)rand()) % (ComputerPossibleMoves.Count);
-					printf("RandIndex: %d, ComputerPossibleMoves.Count: %d\n", RandIndex, ComputerPossibleMoves.Count);
-					assert(0 <= RandIndex && RandIndex < ComputerPossibleMoves.Count);
-
-					for(int i = 0; i < ComputerPossibleMoves.Count; ++i)
-					{
-						int Index = (RandIndex + i) % ComputerPossibleMoves.Count;
-
-						move *PlausableMove = ComputerPossibleMoves.Data[Index];
-
-						// actually make the move
-						image *CapturedPiece = Board[PlausableMove->ToY * 8 + PlausableMove->ToX];
-						Board[PlausableMove->ToY * 8 + PlausableMove->ToX] = Board[PlausableMove->FromY * 8 + PlausableMove->FromX];
-						Board[PlausableMove->FromY * 8 + PlausableMove->FromX] = NULL;
-
-						if (IsInCheck(Board, GameState->ActiveColor))
-						{
-							// take the move back
-							Board[PlausableMove->FromY * 8 + PlausableMove->FromX] = Board[PlausableMove->ToY * 8 + PlausableMove->ToX];
-							Board[PlausableMove->ToY * 8 + PlausableMove->ToX] = CapturedPiece; // if there was a captured piece, put it back
-							
-							continue;
-						}
-						
-						ComputerMove = PlausableMove;
-						MovedPiece = Board[PlausableMove->ToY * 8 + PlausableMove->ToX];
-						Board[PlausableMove->ToY * 8 + PlausableMove->ToX] = CapturedPiece; // if there was a captured piece, put it back
-
-						break;
-					}
-
-					assert(ComputerMove && MovedPiece);
-
-					PlayAnimation(ComputerMove, MovedPiece);
-				}
-				else
-				{
-					printf("MOUSE BUTTON UP, no dragged piece\n");
-				}
-			}
-			break;
-			default:
-			{
-				assert(false);
-			}
-		}
-	}
-
-	// Render background
-	u32 Light = 0x00efd9b7;
-	u32 Dark = 0x00b58965;
-	u32 TileWidth = WindowBuffer->Width / 8;
-	u32 TileHeight = WindowBuffer->Height / 8;
-	for (i32 Y = 0; Y < 8; ++Y)
-	{
-		for (i32 X = 0; X < 8; ++X)
-		{
-			u32 TileColor = ((X + Y) % 2) ? Dark : Light;
-			RenderRectangle(WindowBuffer, X * TileWidth, Y * TileHeight, TileWidth, TileHeight, TileColor);
-		}
-	}
-
-	// Render pieces
-	for (int Y = 0; Y < 8; ++Y)
-	{
-		for (int X = 0; X < 8; ++X)
-		{
-			if (Board[Y * 8 + X] && !(IsDraggedPiece && DraggedPieceX == X && DraggedPieceY == Y))
-			{
-				RenderImage(WindowBuffer, Board[Y * 8 + X], X * 60, Y * 60);
-			}
-		}
-	}
-
-//		// highlight available squares for dragged piece
-//		for (int I = 0; I < DraggedPieceAvailableMoves.Count; ++I)
-//		{
-//			move *Move = DraggedPieceAvailableMoves.Data[I];
-//			int SquareWidth = 20;
-//			int SquareHeight = 20;
-//			int X = Move->ToX * TileWidth + TileWidth / 2 - SquareWidth / 2;
-//			int Y = Move->ToY * TileHeight + TileHeight / 2 - SquareHeight / 2;
-//			RenderRectangle(Pixels, X, Y, SquareWidth, SquareHeight, 0x00ff0000);
-//		}
-
-	i32 MouseX = Input->LastMouseX;
-	i32 MouseY = Input->LastMouseY;
-//	printf("MouseX: %d, MouseY: %d\n", MouseX, MouseY);
-	// If we have a dragged piece, render it
-	if (IsDraggedPiece)
-	{
-		RenderImage(WindowBuffer, Board[DraggedPieceY * 8 + DraggedPieceX], MouseX - 30, MouseY - 30);
-	}
-
-	// animation test
-	if (AnimFramesDone < AnimTotalFrames)
-	{
-		// printf("animation in progress (%d, x: %f, y: %f)\n", AnimFramesDone, AnimCurrentX, AnimCurrentY);
-		RenderImage(WindowBuffer, AnimPiece, (int)AnimCurrentX, (int)AnimCurrentY);
-		AnimCurrentX += AnimDX * 60;
-		AnimCurrentY += AnimDY * 60;
-		AnimFramesDone += 1;
-		if (AnimFramesDone == AnimTotalFrames)
-		{
-			Board[AnimEndY * 8 + AnimEndX] = AnimPiece;
-			GameState->ActiveColor = (color) !((bool) GameState->ActiveColor);
-		}
-	}
-}
-
-void UpdatePostGame(app *App, image *WindowBuffer, /*soundBuffer *SoundBuffer, */userInput *Input)
-{
-	array<event> Events = Input->Events;
-	for (int I = 0; I < Events.Count; ++I)
-	{
-		event Event = Events.Data[I];
-		switch (Event.Type)
-		{
-			case LBUTTONDOWN:
-			{
-				printf("pregame: LBUTTONDOWN: X: %d, Y: %d\n", Event.X, Event.Y);
-			}
-			break;
-			case LBUTTONUP:
-			{
-				printf("pregame: LBUTTONUP: X: %d, Y: %d\n", Event.X, Event.Y);
-			}
-			break;
-			case KEYPRESS:
-			{
-				printf("pregame: KEYPRESS: keycode: %u\n", Event.KeyCode);
-
-				App->Mode = appMode_PREGAME;
-			}
-			break;
-			default:
-				assert(false);
-		}
-	}
-
-	uint32_t Color = 0xff00ff00;
-	RenderRectangle(WindowBuffer, 0, 0, WindowBuffer->Width, WindowBuffer->Height, Color);
 }
 
 void UpdateApp(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
@@ -1471,13 +1599,13 @@ void UpdateApp(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 	switch(App.Mode)
 	{
 		case appMode_PREGAME:
-			UpdatePreGame(&App, WindowBuffer,/* SoundBuffer,*/ Input);
+			UpdatePreGame(&App, WindowBuffer, Input);
 			break;
 		case appMode_GAME:
-			UpdateGame(&App, WindowBuffer,/* SoundBuffer,*/ Input);
+			UpdateGame(&App, WindowBuffer, Input);
 			break;
 		case appMode_POSTGAME:
-			UpdatePostGame(&App, WindowBuffer,/* SoundBuffer,*/ Input);
+			UpdatePostGame(&App, WindowBuffer, Input);
 			break;
 		// case appMode_LEARNCHESS:
 		// 	//...
@@ -1485,21 +1613,4 @@ void UpdateApp(image *WindowBuffer, soundBuffer *SoundBuffer, userInput *Input)
 		default:
 			assert(false);
 	}
-
-	// // if the next move should be made by the computer
-	// if(Players[ActiveColor].Type == playerType_COMPUTER)
-	// {
-	// 	if(ComputerMove.NeedToCalc)
-	// 	{
-	// 		move ComputerMove = GetComputerMove(&GameState, &ComputerMove);
-	// 		ComputerMove.NeedToCalc = false;
-	// 	}
-
-	// 	/*
-	// 	time ->
-	// 	[calc move] -> [simulate thinking] -> [animate move] -> and finally make the move
-	// 	*/
-	// 	int SimulatedThinkingTime = 3000; // 3 ms
-	// 	WaitThenMakeMove(ComputerNextMove, SimulatedThinkingTime);
-	// }
 }

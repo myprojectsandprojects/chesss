@@ -161,7 +161,7 @@ int main()
 
 	// Initialize sound
 	i32 Latency = 6 * 16 * 1000; // for 30 fps
-//	i32 Latency = 3 * 16 * 1000; // for 60 fps
+	// i32 Latency = 3 * 16 * 1000; // for 60 fps
 	i32 NumChannels = 2;
 	i32 SamplesPerSecond = 48000;
 
@@ -332,6 +332,7 @@ int main()
 		UpdateApp(&VideoBuffer, &SoundBuffer, &GameInput);
 //		GameInput.Events.Count = 0;
 		free(GameInput.Events.Data);
+		
 		XPutImage(Connection, W, GraphicsContext, Pixels, 0, 0, 0, 0, Pixels->width, Pixels->height);
 		XDestroyImage(Pixels);
 
