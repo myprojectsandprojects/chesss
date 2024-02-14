@@ -95,7 +95,7 @@ bool Running = true;
 //	return true;
 //}
 
-i64 GetTimeUS()
+int64_t GetTimeUS()
 {
 	// (long int) time_t tv_sec
 	// (long int) suseconds_t tv_usec
@@ -104,8 +104,76 @@ i64 GetTimeUS()
 	return Time.tv_sec * 1000000 + Time.tv_usec;
 }
 
+// struct square
+// {
+// 	int Num, Square, PiDigits, N1, N2, N3;
+// };
+
+// struct myTest
+// {
+// 	bool One, Two, Three;
+// };
+
 int main()
 {
+	// // test array
+	// array<square *> Numbers; ArrayInit(&Numbers);
+	// // array<square> Numbers; ArrayInit(&Numbers);
+
+	// int64_t Time1 = GetTimeUS();
+
+	// // ArrayAdd(&Numbers, 1);
+	// // ArrayAdd(&Numbers, 2);
+	// // ArrayAdd(&Numbers, 3);
+	// // ArrayAdd(&Numbers, 5);
+	// // ArrayAdd(&Numbers, 7);
+
+	// // int *Pointer = ArrayAdd(&Numbers); *Pointer = 7;
+	// // Pointer = ArrayAdd(&Numbers); *Pointer = 5;
+	// // Pointer = ArrayAdd(&Numbers); *Pointer = 3;
+	// // Pointer = ArrayAdd(&Numbers); *Pointer = 2;
+	// // Pointer = ArrayAdd(&Numbers); *Pointer = 1;
+
+	// for(int i = 0; i < 1000000; ++i)
+	// {
+	// 	// square Sq;
+	// 	// Sq.Num = i;
+	// 	// Sq.Square = i*i;
+	// 	// Sq.PiDigits = 3141;
+	// 	// Sq.N1 = 1*i;
+	// 	// Sq.N2 = 2*i;
+	// 	// Sq.N3 = 3*i;
+	// 	// ArrayAdd(&Numbers, Sq);
+
+	// 	// square *Sq = ArrayAdd(&Numbers);
+	// 	// Sq->Num = i;
+	// 	// Sq->Square = i*i;
+	// 	// Sq->PiDigits = 3141;
+	// 	// Sq->N1 = 1*i;
+	// 	// Sq->N2 = 2*i;
+	// 	// Sq->N3 = 3*i;
+
+	// 	square *Sq = (square *)malloc(sizeof(square));
+	// 	Sq->Num = i;
+	// 	Sq->Square = i*i;
+	// 	Sq->PiDigits = 3141;
+	// 	Sq->N1 = 1*i;
+	// 	Sq->N2 = 2*i;
+	// 	Sq->N3 = 3*i;
+	// 	ArrayAdd(&Numbers, Sq);
+	// }
+
+	// int64_t Time2 = GetTimeUS();
+	// printf("elapsed: %ld\n", Time2 - Time1);
+
+	// for(int i = 0; i < 9; ++i)
+	// {
+	// 	// printf("%d: %d, %d\n", i, Numbers.Data[i].Num, Numbers.Data[i].Square);
+	// 	printf("%d: %d, %d\n", i, Numbers.Data[i]->Num, Numbers.Data[i]->Square);
+	// }
+
+	// return 0;
+
 	// Make sure current working directory is the directory which contains the executable. (This might not be the case when the executable is executed through a symbolic link or through a Bash-shell from a different directory)
 	const int exe_path_size = 1024; // allegedly MAX_PATH is not particularly trustworthy
 	char exe_path[exe_path_size];
@@ -234,12 +302,12 @@ int main()
 				case ClientMessage:
 				{
 					XClientMessageEvent Message = e.xclient;
-					if (Message.data.l[0] == SafeUnsignedToSigned(Protocols[DeleteWindowMessage]))
+					if (Message.data.l[0] == Lib::SafeUnsignedToSigned(Protocols[DeleteWindowMessage]))
 					{
 						printf("ClientMessage (WM_DELETE_WINDOW) event!\n");
 						Running = false;
 					}
-					else if (Message.data.l[0] == SafeUnsignedToSigned(Protocols[TakeFocusMessage]))
+					else if (Message.data.l[0] == Lib::SafeUnsignedToSigned(Protocols[TakeFocusMessage]))
 					{
 						printf("ClientMessage (WM_TAKE_FOCUS) event!\n");
 					}

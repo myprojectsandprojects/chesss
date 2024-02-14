@@ -33,7 +33,7 @@ bool LoadBMP(const char *FilePath, image *BMPImage)
 {
 	size_t Size;
 	u8 *Contents;
-	if (!ReadFile(FilePath, &Contents, &Size))
+	if (!Lib::ReadFile(FilePath, &Contents, &Size))
 	{
 		return false;
 	}
@@ -111,7 +111,7 @@ bool LoadWAVFile(const char *FilePath, loadedSound *Sound)
 {
 	size_t NumBytes;
 	u8 *FileContents;
-	if (!ReadFile(FilePath, &FileContents, &NumBytes))
+	if (!Lib::ReadFile(FilePath, &FileContents, &NumBytes))
 	{
 		fprintf(stderr, "error: LoadWAVFile: ReadFile\n");
 		return false;
@@ -119,7 +119,7 @@ bool LoadWAVFile(const char *FilePath, loadedSound *Sound)
 	printf("read %s (%lu bytes)\n", FilePath, NumBytes);
 
 	int32_t offset;
-	if((offset = forward_find_bm(FileContents, NumBytes, (const uint8_t *)"fmt", c_str_len("fmt"))) == -1) {
+	if((offset = Lib::forward_find_bm(FileContents, NumBytes, (const uint8_t *)"fmt", Lib::c_str_len("fmt"))) == -1) {
 		//@free 'FileContents'?
 		fprintf(stderr, "error: LoadWAVFile: couldnt find fmt-chunk!\n");
 		return false;
@@ -152,7 +152,7 @@ bool LoadWAVFile(const char *FilePath, loadedSound *Sound)
 	// printf("BlockAlign: %u\n", BlockAlign);
 	// printf("BitsPerSample: %u\n", BitsPerSample);
 
-	if((offset = forward_find_bm(FileContents, NumBytes, (const uint8_t *)"data", c_str_len("data"))) == -1) {
+	if((offset = Lib::forward_find_bm(FileContents, NumBytes, (const uint8_t *)"data", Lib::c_str_len("data"))) == -1) {
 		fprintf(stderr, "error: LoadWAVFile: couldnt find fmt-chunk!\n");
 		return false;
 	}

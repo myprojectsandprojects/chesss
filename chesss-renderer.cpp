@@ -103,6 +103,8 @@ void RenderRectangle(image *WindowBuffer, i32 XPos, i32 YPos, i32 Width, i32 Hei
 //void RenderImage(XImage *Dest, image *Src, int XPos, int YPos)
 void RenderImage(image *WindowBuffer, image *Image, i32 XPos, i32 YPos)
 {
+	assert(Image);
+	
 	int RenderX = 0;
 	int RenderY = 0;
 	int RenderWidth = Image->Width;

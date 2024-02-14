@@ -1,7 +1,7 @@
-//@ dragging a piece outside of the window and then releasing the mouse button causes some weird behaviour.
-
 /*
 Todo:
+- example: if white's kingside rook is captured, white can manouver its queenside rook to its kingside rook's initial position and castle. I doubt this should happen though???
+
 - play an animation when a computer makes a move
 - if there is no animation, there is really no need to render frames (?)
 - highlight possible moves
@@ -51,22 +51,187 @@ struct player
 	bool ComputerCalculateMove;
 };
 
+// image *Board[8 * 8];
+
+// enum castlingType {
+// 	WHITE_KINGSIDE = 0,
+// 	WHITE_QUEENSIDE = 1,
+// 	BLACK_KINGSIDE = 2,
+// 	BLACK_QUEENSIDE = 3
+// };
+
+struct castlingRights
+{
+	bool Kingside;
+	bool Queenside;
+};
+
+enum moveType
+{
+	moveType_REGULAR,
+	moveType_KINGSIDE_CASTLING,
+	moveType_QUEENSIDE_CASTLING,
+	moveType_PAWN_PROMOTION,
+	moveType_EN_PASSANT
+};
+
+struct regularMove
+{
+	int FromX, FromY, ToX, ToY;
+};
+
+struct pawnPromotionMove
+{
+	int FromX, ToX;
+	image *PromoteTo;
+};
+
+struct enPassantMove
+{
+	int FromX; // a pawn moves diagonally to en-passant square, so the only question is: from which column, as there can be 2
+};
+
 struct move
 {
-	int FromX;
-	int FromY;
-	int ToX;
-	int ToY;
-	// int X0, Y0, X1, Y1;
+	moveType Type;
+	color Side; // have it or not have it? i dont know
+
+	union
+	{
+		regularMove Regular;
+		pawnPromotionMove PawnPromotion;
+		enPassantMove EnPassant;
+	};
 };
+
+struct enPassantSquare
+{
+	bool Exists;
+	int X, Y;
+};
+
+// struct move
+// {
+// 	int FromX;
+// 	int FromY;
+// 	int ToX;
+// 	int ToY;
+// 	// int X0, Y0, X1, Y1;
+
+// 	bool IsPromotion;
+
+// 	// castlingRights CastlingRightsLost;
+// };
+
+// directly translated from fen
+struct gameState
+{
+	image *Board[8][8];
+
+	color ActiveColor; // who's move
+
+	castlingRights CastlingRights[2]; // use color to access
+
+	// // this is a square behind a pawn that has moved 2 squares
+	// // if any of the opponents pawns can capture at this square, then they can capture the pawn
+	// // but the capture can only happen in the next move
+	// // this square only exists during the opponents move
+	enPassantSquare EnPassantSquare;
+
+	// int HalfmoveCounter; // 50-move rule
+	// int CurrentMoveNumber;
+};
+
+struct animation
+{
+	int DurationFrames;
+	int ProgressFrames;
+
+	int StartX;
+	int StartY;
+	int EndX;
+	int EndY;
+	image *Piece;
+
+	double X, Y;
+	double DX, DY;
+
+	move Move;
+};
+
+enum promotionDialogPiece
+{
+	promotionDialogPiece_NO_PIECE = -1,
+	promotionDialogPiece_QUEEN,
+	promotionDialogPiece_KNIGHT,
+	promotionDialogPiece_BISHOP,
+	promotionDialogPiece_ROOK
+};
+
+struct promotionDialog
+{
+	int X;
+	int Y;
+	int Width;
+	int Height;
+
+	// color Color;
+
+	promotionDialogPiece PieceIndex;
+	image *SelectablePieces[2][4];
+
+	move MoveToMake;
+};
+
+struct app
+{
+	appMode Mode;
+
+	gameState GameState;
+	player Players[2];
+
+	int TileWidth, TileHeight;
+	int BoardWidth, BoardHeight;
+
+	bool IsDraggedPiece;
+	struct {
+		int X, Y;
+		array<move> AvailableMoves;
+	} DraggedPiece;
+
+	animation *PlayingAnimation; // just 1 for now
+	animation Animation;
+
+	bool DisplayPromotionDialog;
+	promotionDialog PromotionDialog;
+
+	bool PreviousStateExists;
+	gameState PreviousGameState;
+
+	bool IsGameDebugMode;
+} App;
+
+enum gameOver
+{
+	gameOver_NOT_OVER = 0,
+	gameOver_CHECKMATE,
+	gameOver_STALEMATE
+};
+
+// struct unmakeMove
+// {
+// 	image *CapturedPiece;
+// 	castlingRights CastlingRightsLost; // castling rights to restore
+// 	bool SetEnPassantSquare;
+// };
 
 //loadedSound TestSound;
 loadedSound MoveSound;
 loadedSound CaptureSound;
 loadedSound CheckSound;
 
-//@ could store these in such a way that we could figure out the color by comparing memory addresses (?)
 // "The C++ standard guarantees that the members of a class or struct appear in memory in the same order as they are declared."
+//@ if we store all white piece images before all black piece images, for example, then, given that we have an image pointer, we could just compare it with the memory address of the first black piece image to determine the color. and that would be just one comparsion. (?)
 image WKingImage;
 image BKingImage;
 image WQueenImage;
@@ -86,83 +251,7 @@ image BPawnImage;
 
 lib::linkedList<playingSound *> PlayingSounds; // The only reason its a linked list is because I wanted to try out a linked list.
 
-// bool IsDraggedPiece;
-// int DraggedPieceX;
-// int DraggedPieceY;
-// // int DraggedPiecePixelX;
-// // int DraggedPiecePixelY;
-
-struct animation
-{
-	int DurationFrames; // both initialized to 0, so not playing
-	int ProgressFrames;
-
-	int StartX;
-	int StartY;
-	int EndX;
-	int EndY;
-	image *Piece;
-
-	double X, Y;
-	double DX, DY;
-
-	move Move;
-};
-
-// image *Board[8 * 8];
-
-// enum castlingType {
-// 	WHITE_KINGSIDE = 0,
-// 	WHITE_QUEENSIDE = 1,
-// 	BLACK_KINGSIDE = 2,
-// 	BLACK_QUEENSIDE = 3
-// };
-
-// directly translated from fen
-struct gameState {
-	image *Board[8][8];
-
-	color ActiveColor; // who's move
-
-	// // bool CastlingOptions[4]; // use 'castlingType' to access
-	// struct {
-	// 	bool WhiteKingside;
-	// 	bool WhiteQueenside;
-	// 	bool BlackKingside;
-	// 	bool BlackQueenside;
-	// } CastlingOptions;
-
-	// // this is a square behind a pawn that has moved 2 squares
-	// // if any of the opponents pawns can capture at this square, then they can capture the pawn
-	// // but the capture can only happen in the next move
-	// // this square only exists during the opponents move
-	// struct {
-	// 	bool Exists;
-	// 	int X, Y;
-	// } EnPassantSquare;
-
-	// int HalfmoveCounter; // 50-move rule
-	// int CurrentMoveNumber;
-};
-
-struct app
-{
-	appMode Mode;
-
-	gameState GameState;
-	player Players[2];
-
-	int TileWidth, TileHeight;
-
-	bool IsDraggedPiece;
-	struct {
-		int BoardX, BoardY;
-	} DraggedPiece;
-
-	animation *PlayingAnimation; // just 1 for now
-	animation Animation;
-} App;
-
+#if 0
 void MakeAnimation(app *App, animation *A, move Move, image *Piece)
 {
 	// A->DurationFrames = 64;
@@ -183,7 +272,9 @@ void MakeAnimation(app *App, animation *A, move Move, image *Piece)
 	A->Piece = Piece;
 	A->Move = Move;
 }
+#endif
 
+#if 0
 move *NewMove(int FromX, int FromY, int ToX, int ToY)
 {
 	move *Move = (move *) malloc(sizeof(move));
@@ -193,23 +284,369 @@ move *NewMove(int FromX, int FromY, int ToX, int ToY)
 	Move->ToY = ToY;
 	return Move;
 }
+#endif
 
-// more exotic moves: en passant, castling, pawn promotion
+// void Make_move(move *Move, int FromX, int FromY, int ToX, int ToY, bool IsPromotion = false)
+// {
+// 	Move->FromX = FromX;
+// 	Move->FromY = FromY;
+// 	Move->ToX = ToX;
+// 	Move->ToY = ToY;
+// 	Move->IsPromotion = IsPromotion;
+// }
+
+void Make_regularMove(move *Move, color Side, int FromX, int FromY, int ToX, int ToY)
+{
+	Move->Type = moveType_REGULAR;
+	Move->Side = Side;
+
+	Move->Regular.FromX = FromX;
+	Move->Regular.FromY = FromY;
+	Move->Regular.ToX = ToX;
+	Move->Regular.ToY = ToY;
+}
+
+void Make_kingsideCastlingMove(move *Move, color Side)
+{
+	Move->Type = moveType_KINGSIDE_CASTLING;
+	Move->Side = Side;
+}
+
+void Make_queensideCastlingMove(move *Move, color Side)
+{
+	Move->Type = moveType_QUEENSIDE_CASTLING;
+	Move->Side = Side;
+}
+
+void Make_pawnPromotionMove(move *Move, color Side, int FromX, int ToX)
+{
+	Move->Type = moveType_PAWN_PROMOTION;
+	Move->Side = Side;
+
+	Move->PawnPromotion.FromX = FromX;
+	Move->PawnPromotion.ToX = ToX;
+	Move->PawnPromotion.PromoteTo = NULL;
+}
+
+void Make_enPassantMove(move *Move, color Side, int FromX)
+{
+	Move->Type = moveType_EN_PASSANT;
+	Move->Side = Side;
+
+	Move->EnPassant.FromX = FromX;
+}
+
+color GetPieceColor(image *Piece)
+{
+	assert(Piece == &WKingImage
+		|| Piece == &BKingImage
+		|| Piece == &WQueenImage
+		|| Piece == &BQueenImage
+		|| Piece == &WRookImage
+		|| Piece == &BRookImage
+		|| Piece == &WBishopImage
+		|| Piece == &BBishopImage
+		|| Piece == &WKnightImage
+		|| Piece == &BKnightImage
+		|| Piece == &WPawnImage
+		|| Piece == &BPawnImage);
+
+	return (Piece == &WKingImage
+		|| Piece == &WQueenImage
+		|| Piece == &WRookImage
+		|| Piece == &WBishopImage
+		|| Piece == &WKnightImage
+		|| Piece == &WPawnImage)
+		? WHITE : BLACK;
+}
+
+bool IsWhitePiece(image *Piece)
+{
+	return (Piece == &WPawnImage || Piece == &WRookImage || Piece == &WKnightImage || Piece == &WBishopImage || Piece == &WQueenImage || Piece == &WKingImage);
+}
+
+//@ what if its an empty square?
+bool IsBlackPiece(image *Piece)
+{
+	return !IsWhitePiece(Piece);
+}
+
+// // easily unmakeable
+// image *MakeMove(gameState *GameState, move *Move)
+// {
+// 	// make the move on board, so that we can check for checks
+// }
+
+// // you cant unmake this
+// void MakeFinalMove(gameState *GameState, move *Move)
+// {
+// 	// update everything else around the move
+
+// 	MakeMove(gameState *GameState, move *Move);
+// }
+
 // later on, should updating move counters, castling rights etc. also be done here?
-image *MakeMove(gameState *GameState, move *Move)
+void MakeMove(app *App, gameState *GameState, move *Move)
+// unmakeMove MakeMove(gameState *GameState, move *Move)
 {
-	image *PossibleCapturedPiece = GameState->Board[Move->ToY][Move->ToX];
-	GameState->Board[Move->ToY][Move->ToX] = GameState->Board[Move->FromY][Move->FromX];
-	GameState->Board[Move->FromY][Move->FromX] = NULL;
+	// // unmakeMove UnmakeMove = {};
+	// unmakeMove Unmake;
+	// Unmake.CapturedPiece = NULL;
+	// Unmake.CastlingRightsLost.Kingside = false;
+	// Unmake.CastlingRightsLost.Queenside = false;
+	// Unmake.SetEnPassantSquare = false; //@ incomplete
 
-	return PossibleCapturedPiece;
+	App->PreviousGameState = App->GameState;
+	App->PreviousStateExists = true;
+
+	enPassantSquare EnPassantSquare = GameState->EnPassantSquare;
+	GameState->EnPassantSquare.Exists = false;
+
+	switch(Move->Type)
+	{
+		case moveType_REGULAR:
+		{
+			regularMove *Regular = (regularMove *)&Move->Regular;
+
+			image *CapturedPiece = GameState->Board[Regular->ToY][Regular->ToX];
+			GameState->Board[Regular->ToY][Regular->ToX] = GameState->Board[Regular->FromY][Regular->FromX];
+			GameState->Board[Regular->FromY][Regular->FromX] = NULL;
+
+			// Unmake.CapturedPiece = CapturedPiece;
+
+			image *MovedPiece = GameState->Board[Regular->ToY][Regular->ToX];
+
+			// if pawn moved two squares, set en-passant square
+			if(GameState->ActiveColor == WHITE)
+			{
+				if(MovedPiece == &WPawnImage && Regular->FromY == 6 && Regular->ToY == 4)
+				{
+					assert(Regular->FromX == Regular->ToX);
+					
+					GameState->EnPassantSquare.Exists = true;
+					GameState->EnPassantSquare.X = Regular->ToX;
+					GameState->EnPassantSquare.Y = Regular->ToY + 1;
+
+					// Unmake.SetEnPassantSquare = true;
+				}
+			}
+			else
+			{
+				assert(GameState->ActiveColor == BLACK);
+
+				if(MovedPiece == &BPawnImage && Regular->FromY == 1 && Regular->ToY == 3)
+				{
+					assert(Regular->FromX == Regular->ToX);
+
+					GameState->EnPassantSquare.Exists = true;
+					GameState->EnPassantSquare.X = Regular->ToX;
+					GameState->EnPassantSquare.Y = Regular->ToY - 1;
+
+					// Unmake.SetEnPassantSquare = true;
+				}
+			}
+		}
+		break;
+		case moveType_KINGSIDE_CASTLING:
+		{
+			assert(GameState->CastlingRights[GameState->ActiveColor].Kingside);
+			if(Move->Side == WHITE)
+			{
+				// king
+				GameState->Board[7][6] = GameState->Board[7][4];
+				GameState->Board[7][4] = NULL;
+
+				// rook
+				GameState->Board[7][5] = GameState->Board[7][7];
+				GameState->Board[7][7] = NULL;
+			}
+			else
+			{
+				assert(Move->Side == BLACK);
+
+				// king
+				GameState->Board[0][4] = NULL;
+				GameState->Board[0][6] = &BKingImage;
+
+				// rook
+				GameState->Board[0][7] = NULL;
+				GameState->Board[0][5] = &BRookImage;
+			}
+		}
+		break;
+		case moveType_QUEENSIDE_CASTLING:
+		{
+			assert(GameState->CastlingRights[GameState->ActiveColor].Queenside);
+			if(Move->Side == WHITE)
+			{
+				// castling
+
+				// king
+				GameState->Board[7][2] = GameState->Board[7][4];
+				GameState->Board[7][4] = NULL;
+
+				// rook
+				GameState->Board[7][3] = GameState->Board[7][0];
+				GameState->Board[7][0] = NULL;
+			}
+			else
+			{
+				assert(Move->Side == BLACK);
+
+				// king
+				GameState->Board[0][4] = NULL;
+				GameState->Board[0][2] = &BKingImage;
+
+				// rook
+				GameState->Board[0][0] = NULL;
+				GameState->Board[0][3] = &BRookImage;
+			}
+
+			// castling rights
+			GameState->CastlingRights[GameState->ActiveColor].Kingside = false;
+			GameState->CastlingRights[GameState->ActiveColor].Queenside = false;
+		}
+		break;
+		case moveType_PAWN_PROMOTION:
+		{
+			if(Move->Side == WHITE)
+			{
+				GameState->Board[0][Move->PawnPromotion.ToX] = Move->PawnPromotion.PromoteTo;
+				GameState->Board[1][Move->PawnPromotion.FromX] = NULL;
+			}
+			else
+			{
+				assert(Move->Side == BLACK);
+				GameState->Board[7][Move->PawnPromotion.ToX] = Move->PawnPromotion.PromoteTo;
+				GameState->Board[6][Move->PawnPromotion.FromX] = NULL;
+			}
+		}
+		break;
+		case moveType_EN_PASSANT:
+		{
+			assert(EnPassantSquare.Exists);
+			if(Move->Side == WHITE)
+			{
+				GameState->Board[EnPassantSquare.Y][EnPassantSquare.X] = GameState->Board[3][Move->EnPassant.FromX];
+				GameState->Board[3][Move->EnPassant.FromX] = NULL;
+				GameState->Board[EnPassantSquare.Y + 1][EnPassantSquare.X] = NULL;
+			}
+			else
+			{
+				assert(Move->Side == BLACK);
+
+				GameState->Board[EnPassantSquare.Y][EnPassantSquare.X] = GameState->Board[4][Move->EnPassant.FromX];
+				GameState->Board[4][Move->EnPassant.FromX] = NULL;
+				GameState->Board[EnPassantSquare.Y - 1][EnPassantSquare.X] = NULL;
+			}
+		}
+		break;
+
+		default: assert(false);
+	}
+
+	// castling rights (castling, king, rook)
+	if(Move->Type == moveType_REGULAR)
+	{
+		image *MovingPiece = GameState->Board[Move->Regular.ToY][Move->Regular.ToX];
+
+		if(MovingPiece == &WKingImage || MovingPiece == &BKingImage)
+		{
+			GameState->CastlingRights[GameState->ActiveColor].Kingside = false;
+			GameState->CastlingRights[GameState->ActiveColor].Queenside = false;
+		}
+
+		if(MovingPiece == &WRookImage)
+		{
+			if(Move->Regular.FromY == 7 && Move->Regular.FromX == 7)
+			{
+				// if(GameState->CastlingRights[WHITE].Kingside)
+				// {
+				// 	// printf("WHITES'S KINGSIDE ROOK MOVED FIRST TIME\n");
+				// 	GameState->CastlingRights[WHITE].Kingside = false;
+				// }
+				GameState->CastlingRights[WHITE].Kingside = false;
+			}
+			else if(Move->Regular.FromY == 7 && Move->Regular.FromX == 0)
+			{
+				GameState->CastlingRights[WHITE].Queenside = false;
+			}
+		}
+		else if(MovingPiece == &BRookImage)
+		{
+			if(Move->Regular.FromY == 0 && Move->Regular.FromX == 7)
+			{
+				GameState->CastlingRights[BLACK].Kingside = false;
+			}
+			else if(Move->Regular.FromY == 0 && Move->Regular.FromX == 0)
+			{
+				GameState->CastlingRights[BLACK].Queenside = false;
+			}
+		}
+	}
+	else if(Move->Type == moveType_KINGSIDE_CASTLING || Move->Type == moveType_QUEENSIDE_CASTLING)
+	{
+			GameState->CastlingRights[GameState->ActiveColor].Kingside = false;
+			GameState->CastlingRights[GameState->ActiveColor].Queenside = false;
+	}
+
+	// return Unmake;
 }
 
-void UnmakeMove(gameState *GameState, move *Move, image *PossibleCapturedPiece)
+void UnmakeLastMove(app *App)
 {
-	GameState->Board[Move->FromY][Move->FromX] = GameState->Board[Move->ToY][Move->ToX];
-	GameState->Board[Move->ToY][Move->ToX] = PossibleCapturedPiece;
+	assert(App->PreviousStateExists);
+
+	App->GameState = App->PreviousGameState;
+	App->PreviousStateExists = false;
 }
+
+// void UnmakeMove(gameState *GameState, move *Move, unmakeMove Unmake)
+// // void UnmakeMove(gameState *GameState, move *Move, image *PossibleCapturedPiece)
+// {
+// 	// restore castling rights
+// 	if(Unmake.CastlingRightsLost.Kingside)
+// 	{
+// 		color OurColor = GetPieceColor(GameState->Board[Move->ToY][Move->ToX]);
+// 		GameState->CastlingRights[OurColor].Kingside = true;
+// 	}
+
+// 	if(GameState->Board[Move->ToY][Move->ToX] == &WKingImage
+// 		&& Move->FromX == 4 && Move->FromY == 7
+// 		&& Move->ToX == 6 && Move->ToY == 7)
+// 	{
+// 		// castling
+
+// 		// king
+// 		GameState->Board[Move->FromY][Move->FromX] = GameState->Board[Move->ToY][Move->ToX];
+// 		GameState->Board[Move->ToY][Move->ToX] = NULL;
+
+// 		// rook
+// 		GameState->Board[7][7] = GameState->Board[7][5];
+// 		GameState->Board[7][5] = NULL;
+
+// 		return;
+// 	}
+// 	else if(GameState->Board[Move->ToY][Move->ToX] == &BKingImage
+// 		&& Move->FromX == 4 && Move->FromY == 0
+// 		&& Move->ToX == 6 && Move->ToY == 0)
+// 	{
+// 		// castling
+
+// 		// king
+// 		GameState->Board[Move->FromY][Move->FromX] = GameState->Board[Move->ToY][Move->ToX];
+// 		GameState->Board[Move->ToY][Move->ToX] = NULL;
+
+// 		// rook
+// 		GameState->Board[0][7] = GameState->Board[0][5];
+// 		GameState->Board[0][5] = NULL;
+
+// 		return;
+// 	}
+
+// 	GameState->Board[Move->FromY][Move->FromX] = GameState->Board[Move->ToY][Move->ToX];
+// 	GameState->Board[Move->ToY][Move->ToX] = Unmake.CapturedPiece;
+// }
 
 void SwitchTurn(gameState *GameState)
 {
@@ -222,6 +659,11 @@ void SwitchTurn(gameState *GameState)
 // [CASTLING rights]: KQkq/-
 // [EN PASSANT] square in algebraic notation (e3)
 // [# of HALFMOVES]: Halfmoves made since the last pawn advance or the piece capture. When this counter reaches 100 the game ends in a draw
+void SetUpGameState(gameState *GameState, const char *Fen)
+{
+	//@ implement this
+}
+
 void SetUpBoard(image *Board[], const char *Fen)
 {
 	for (int Y = 0; Y < 8; ++Y)
@@ -264,516 +706,687 @@ void SetUpBoard(image *Board[], const char *Fen)
 	}
 }
 
-color GetPieceColor(image *Piece)
+//@ en-passant
+void GetMovesForPawn(gameState *GameState, int PieceX, int PieceY, array<move> *LegalMoves)
 {
-	assert(Piece == &WKingImage
-		|| Piece == &BKingImage
-		|| Piece == &WQueenImage
-		|| Piece == &BQueenImage
-		|| Piece == &WRookImage
-		|| Piece == &BRookImage
-		|| Piece == &WBishopImage
-		|| Piece == &BBishopImage
-		|| Piece == &WKnightImage
-		|| Piece == &BKnightImage
-		|| Piece == &WPawnImage
-		|| Piece == &BPawnImage);
+	image *Piece = GameState->Board[PieceY][PieceX];
+	assert(Piece == &WPawnImage || Piece == &BPawnImage);
 
-	return (Piece == &WKingImage
-		|| Piece == &WQueenImage
-		|| Piece == &WRookImage
-		|| Piece == &WBishopImage
-		|| Piece == &WKnightImage
-		|| Piece == &WPawnImage)
-		? WHITE : BLACK;
-}
+	color OurColor = GetPieceColor(Piece);
+	color OpponentsColor = (OurColor == WHITE) ? BLACK : WHITE;
 
-bool IsWhitePiece(image *Piece)
-{
-	return (Piece == &WPawnImage || Piece == &WRookImage || Piece == &WKnightImage || Piece == &WBishopImage || Piece == &WQueenImage || Piece == &WKingImage);
-}
+	int OneStepForward = (OurColor == WHITE) ? -1 : +1;
+	int FirstRow = (OurColor == WHITE) ? 7 : 0;
+	int LastRow = FirstRow + OneStepForward * 7;
 
-//@ what if its an empty square?
-bool IsBlackPiece(image *Piece)
-{
-	return !IsWhitePiece(Piece);
-}
+	int X, Y;
 
-void GetMovesForPiece(image *Board[], int PieceX, int PieceY, array<move *> *Moves)
-{
-	image *Piece = Board[PieceY * 8 + PieceX];
-
-	if (Piece == &WRookImage || Piece == &BRookImage || Piece == &WQueenImage || Piece == &BQueenImage)
+	X = PieceX; Y = PieceY + OneStepForward;
+	if(X >= 0 && Y >= 0 && X < 8 && Y < 8)
 	{
-		// scan horizontally to the right
-		for (int X = PieceX + 1; X < 8; ++X)
+		if(GameState->Board[Y][X] == NULL)
 		{
-			int I = PieceY * 8 + X;
-			if (Board[I])
-			{
-				// is this an ally or an enemy piece?
-				if ((IsWhitePiece(Piece) && IsWhitePiece(Board[I]))
-					|| (IsBlackPiece(Piece) && IsBlackPiece(Board[I])))
-				{
-					break;
-				}
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = PieceY;
-				ArrayAdd(Moves, Move);
-//				ArrayAdd(Moves, MoveNew(PieceX, PieceY, X, PieceY));
-				break;
-			}
-			else
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = PieceY;
-				ArrayAdd(Moves, Move);
-			}
-		}
+			move *Move = ArrayAdd(LegalMoves);
 
-		// scan horizontally to the left
-		for (int X = PieceX - 1; X >= 0; --X)
-		{
-			int I = PieceY * 8 + X;
-			if (Board[I])
+			if(Y == LastRow)
 			{
-				// is this an ally or an enemy piece?
-				if ((IsWhitePiece(Piece) && IsWhitePiece(Board[I])) || (IsBlackPiece(Piece) && IsBlackPiece(Board[I])))
-				{
-					break;
-				}
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = PieceY;
-				ArrayAdd(Moves, Move);
-				break;
+				// Move->IsPromotion = true;
+				Make_pawnPromotionMove(Move, OurColor, PieceX, X);
 			}
 			else
 			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = PieceY;
-				ArrayAdd(Moves, Move);
-			}
-		}
-
-		// scan vertically to the up
-		for (int Y = PieceY - 1; Y >= 0; --Y)
-		{
-			int I = Y * 8 + PieceX;
-			if (Board[I])
-			{
-				// is this an ally or an enemy piece?
-				if ((IsWhitePiece(Piece) && IsWhitePiece(Board[I])) || (IsBlackPiece(Piece) && IsBlackPiece(Board[I])))
-				{
-					break;
-				}
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = PieceX;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-				break;
-			}
-			else
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = PieceX;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
-		// scan vertically to the down
-		for (int Y = PieceY + 1; Y < 8; ++Y)
-		{
-			int I = Y * 8 + PieceX;
-			if (Board[I])
-			{
-				// is this an ally or an enemy piece?
-				if ((IsWhitePiece(Piece) && IsWhitePiece(Board[I])) || (IsBlackPiece(Piece) && IsBlackPiece(Board[I])))
-				{
-					break;
-				}
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = PieceX;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-				break;
-			}
-			else
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = PieceX;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
 			}
 		}
 	}
 
-	if (Piece == &WBishopImage || Piece == &BBishopImage || Piece == &WQueenImage || Piece == &BQueenImage)
+	if(PieceY == FirstRow + OneStepForward)
 	{
-		// scan diagonally in down-right direction
-		for (int X = PieceX + 1, Y = PieceY + 1; X < 8 && Y < 8; ++X, ++Y)
+		X = PieceX; Y = PieceY + OneStepForward * 2;
+		if(X >= 0 && Y >= 0 && X < 8 && Y < 8)
 		{
-			int I = Y * 8 + X;
-			if (Board[I])
+			if(GameState->Board[Y][X] == NULL && GameState->Board[Y - OneStepForward][X] == NULL)
 			{
-				// is this an ally or an enemy piece?
-				if ((IsWhitePiece(Piece) && IsWhitePiece(Board[I])) || (IsBlackPiece(Piece) && IsBlackPiece(Board[I])))
-				{
-					break;
-				}
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-				break;
-			}
-			else
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
+				// LegalMoves[Y][X] = (moveBits)(LegalMoves[Y][X] | moveBits_LEGAL_MOVE);
 
-		// scan diagonally in down-left direction
-		for (int X = PieceX - 1, Y = PieceY + 1; X >= 0 && Y < 8; --X, ++Y)
-		{
-			int I = Y * 8 + X;
-			if (Board[I])
-			{
-				// is this an ally or an enemy piece?
-				if ((IsWhitePiece(Piece) && IsWhitePiece(Board[I])) || (IsBlackPiece(Piece) && IsBlackPiece(Board[I])))
-				{
-					break;
-				}
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-				break;
-			}
-			else
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
+				move *Move = ArrayAdd(LegalMoves);
+				// Make_move(Move, PieceX, PieceY, X, Y);
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
 
-		// scan diagonally in top-left direction
-		for (int X = PieceX - 1, Y = PieceY - 1; X >= 0 && Y >= 0; --X, --Y)
-		{
-			int I = Y * 8 + X;
-			if (Board[I])
-			{
-				// is this an ally or an enemy piece?
-				if ((IsWhitePiece(Piece) && IsWhitePiece(Board[I])) || (IsBlackPiece(Piece) && IsBlackPiece(Board[I])))
-				{
-					break;
-				}
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-				break;
-			}
-			else
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
-
-		// scan diagonally in top-right direction
-		for (int X = PieceX + 1, Y = PieceY - 1; X < 8 && Y >= 0; ++X, --Y)
-		{
-			int I = Y * 8 + X;
-			if (Board[I])
-			{
-				// is this an ally or an enemy piece?
-				if ((IsWhitePiece(Piece) && IsWhitePiece(Board[I])) || (IsBlackPiece(Piece) && IsBlackPiece(Board[I])))
-				{
-					break;
-				}
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-				break;
-			}
-			else
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
+				// promotion cant happen here
+				assert(Y != LastRow);
 			}
 		}
 	}
 
-	if (Piece == &WKingImage || Piece == &BKingImage)
+	X = PieceX - 1; Y = PieceY + OneStepForward;
+	if(X >= 0 && Y >= 0 && X < 8 && Y < 8)
 	{
-		double Pi = 3.14159;
-		double PiOverFour = Pi / 4.0;
-		double TwoPi = 2.0 * Pi;
-//		printf("%f\n", PiOverFour);
-		for (double A = 0; A < TwoPi; A += PiOverFour)
+		if(GameState->Board[Y][X] && GetPieceColor(GameState->Board[Y][X]) == OpponentsColor)
 		{
-			int DX = ((int) (cos(A) + 1.0 + 0.5)) - 1;
-			int DY = ((int) (sin(A) + 1.0 + 0.5)) - 1;
-			int X = PieceX + DX;
-			int Y = PieceY + DY;
-			if (X < 0 || X > 7 || Y < 0 || Y > 7)
+			// LegalMoves[Y][X] = (moveBits)(LegalMoves[Y][X] | moveBits_LEGAL_MOVE);
+			// // LegalMoves[Y][X] = (moveBits)(LegalMoves[Y][X] | moveBits_CAPTURE);
+
+			move *Move = ArrayAdd(LegalMoves);
+
+			if(Y == LastRow)
 			{
-				continue;
+				// Move->IsPromotion = true;
+				Make_pawnPromotionMove(Move, OurColor, PieceX, X);
 			}
+			else
+			{
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+			}
+		}
+		else if(GameState->Board[Y][X] == NULL && GameState->EnPassantSquare.Exists && GameState->EnPassantSquare.X == X && GameState->EnPassantSquare.Y == Y)
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			Make_enPassantMove(Move, OurColor, PieceX);
+		}
+	}
+
+	X = PieceX + 1; Y = PieceY + OneStepForward;
+	if(X >= 0 && Y >= 0 && X < 8 && Y < 8)
+	{
+		if(GameState->Board[Y][X] && GetPieceColor(GameState->Board[Y][X]) == OpponentsColor)
+		{
+			// // LegalMoves[Y][X] = (moveBits)(LegalMoves[Y][X] | moveBits_CAPTURE);
+
+			move *Move = ArrayAdd(LegalMoves);
+
+			if(Y == LastRow)
+			{
+				// Move->IsPromotion = true;
+				Make_pawnPromotionMove(Move, OurColor, PieceX, X);
+			}
+			else
+			{
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+			}
+		}
+		else if(GameState->Board[Y][X] == NULL && GameState->EnPassantSquare.Exists && GameState->EnPassantSquare.X == X && GameState->EnPassantSquare.Y == Y)
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			Make_enPassantMove(Move, OurColor, PieceX);
+		}
+	}
+}
+
+void GetMovesForKing(gameState *GameState, int PieceX, int PieceY, array<move> *LegalMoves)
+{
+	color OurColor = GetPieceColor(GameState->Board[PieceY][PieceX]);
+
+// 	double Pi = 3.14159;
+// 	double PiOverFour = Pi / 4.0;
+// 	double TwoPi = 2.0 * Pi;
+// //		printf("%f\n", PiOverFour);
+
+// 	for (double A = 0; A < TwoPi; A += PiOverFour)
+// 	{
+// 		int DX = ((int) (cos(A) + 1.0 + 0.5)) - 1;
+// 		int DY = ((int) (sin(A) + 1.0 + 0.5)) - 1;
+// 		int X = PieceX + DX;
+// 		int Y = PieceY + DY;
+// 		if (X < 0 || X > 7 || Y < 0 || Y > 7)
+// 		{
+// 			continue;
+// 		}
+
+// 		if(GameState->Board[Y][X] == NULL || GetPieceColor(GameState->Board[Y][X]) != OurColor)
+// 		{
+// 			move *Move = ArrayAdd(LegalMoves);
+// 			Make_move(Move, PieceX, PieceY, X, Y);
+// 		}
+// 		else
+// 		{
+// 			continue;
+// 		}
+// 	}
+
+	int Deltas[8][2] = {
+		// x, y
+		{0, -1}, // up
+		{1, -1}, // up-right
+		{1, 0}, // right
+		{1, 1}, // down-right
+		{0, 1}, // down
+		{-1, 1}, // down-left
+		{-1, 0}, // left
+		{-1, -1} // up-left
+	};
+
+	for(int i = 0; i < 8; ++i)
+	{
+		int X = PieceX + Deltas[i][0];
+		int Y = PieceY + Deltas[i][1];
+
+		if (X < 0 || X > 7 || Y < 0 || Y > 7)
+		{
+			continue;
+		}
+
+		if(GameState->Board[Y][X] == NULL)
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+		}
+		else if(GetPieceColor(GameState->Board[Y][X]) != OurColor)
+		{
+			// capture
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+		}
+	}
+
+	// castling
+	if(OurColor == WHITE)
+	{
+		if(GameState->CastlingRights[WHITE].Kingside
+			&& GameState->Board[7][4] == &WKingImage
+			&& GameState->Board[7][5] == NULL
+			&& GameState->Board[7][6] == NULL
+			&& GameState->Board[7][7] == &WRookImage)
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, 6, 7);
+			Make_kingsideCastlingMove(Move, OurColor);
+		}
+
+		if(GameState->CastlingRights[WHITE].Queenside
+			&& GameState->Board[7][4] == &WKingImage
+			&& GameState->Board[7][1] == NULL
+			&& GameState->Board[7][2] == NULL
+			&& GameState->Board[7][3] == NULL
+			&& GameState->Board[7][0] == &WRookImage)
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, 6, 7);
+			Make_queensideCastlingMove(Move, OurColor);
+		}
+	}
+	else
+	{
+		assert(OurColor == BLACK);
+
+		if(GameState->CastlingRights[BLACK].Kingside
+			&& GameState->Board[0][4] == &BKingImage
+			&& GameState->Board[0][5] == NULL
+			&& GameState->Board[0][6] == NULL
+			&& GameState->Board[0][7] == &BRookImage)
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			Make_kingsideCastlingMove(Move, OurColor);
+		}
+
+		if(GameState->CastlingRights[BLACK].Queenside
+			&& GameState->Board[0][4] == &BKingImage
+			&& GameState->Board[0][1] == NULL
+			&& GameState->Board[0][2] == NULL
+			&& GameState->Board[0][3] == NULL
+			&& GameState->Board[0][0] == &BRookImage)
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, 6, 7);
+			Make_queensideCastlingMove(Move, OurColor);
+		}
+	}
+}
+
+void GetMovesForKnight(gameState *GameState, int PieceX, int PieceY, array<move> *LegalMoves)
+{
+	color OurColor = GetPieceColor(GameState->Board[PieceY][PieceX]);
+
+	int XDeltas[] = {-1, +1, -2, +2, -2, +2, -1, +1};
+	int YDeltas[] = {-2, -2, -1, -1, +1, +1, +2, +2};
+	
+	for (int I = 0; I < 8; ++I)
+	{
+		int X = PieceX + XDeltas[I];
+		int Y = PieceY + YDeltas[I];
+		if (X < 0 || X > 7 || Y < 0 || Y > 7)
+		{
+			continue;
+		}
 //			printf("X: %d, Y: %d\n", X, Y);
 
-			int BoardIndex = Y * 8 + X;
-			if (Board[BoardIndex] && ((IsWhitePiece(Piece) && IsWhitePiece(Board[BoardIndex])) || (IsBlackPiece(Piece) && IsBlackPiece(Board[BoardIndex]))))
-			{
-				continue;
-			}
-			else
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
-	}
+		// int BoardIndex = Y * 8 + X;
+		// if (Board[BoardIndex] && ((IsWhitePiece(Piece) && IsWhitePiece(Board[BoardIndex])) || (IsBlackPiece(Piece) && IsBlackPiece(Board[BoardIndex]))))
+		// {
+		// 	continue;
+		// }
+		// else
+		// {
+		// 	move *Move = (move *) malloc(sizeof(move));
+		// 	Move->FromX = PieceX;
+		// 	Move->FromY = PieceY;
+		// 	Move->ToX = X;
+		// 	Move->ToY = Y;
+		// 	ArrayAdd(Moves, Move);
+		// }
 
-	if (Piece == &WKnightImage || Piece == &BKnightImage)
-	{
-		int XDeltas[] = {-1, 1, -2, 2, -2, 2, -1, 1};
-		int YDeltas[] = {-2, -2, -1, -1, 1, 1, 2, 2};
-		for (int I = 0; I < 8; ++I)
+		if(GameState->Board[Y][X] == NULL || GetPieceColor(GameState->Board[Y][X]) != OurColor)
 		{
-			int X = PieceX + XDeltas[I];
-			int Y = PieceY + YDeltas[I];
-			if (X < 0 || X > 7 || Y < 0 || Y > 7)
-			{
-				continue;
-			}
-//			printf("X: %d, Y: %d\n", X, Y);
-
-			int BoardIndex = Y * 8 + X;
-			if (Board[BoardIndex] && ((IsWhitePiece(Piece) && IsWhitePiece(Board[BoardIndex])) || (IsBlackPiece(Piece) && IsBlackPiece(Board[BoardIndex]))))
-			{
-				continue;
-			}
-			else
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
 		}
-	}
-
-	if (Piece == &WPawnImage)
-	{
+		else
 		{
-			int X = PieceX;
-			int Y = PieceY - 1;
-			int BoardIndex = Y * 8 + X;
-			if (!Board[BoardIndex] && (X < 8 && X >= 0 && Y < 8 && Y >= 0))
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
-		{
-			int X = PieceX - 1;
-			int Y = PieceY - 1;
-			int BoardIndex = Y * 8 + X;
-			if (Board[BoardIndex] && (IsBlackPiece(Board[BoardIndex])) && (X < 8 && X >= 0 && Y < 8 && Y >= 0))
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
-		{
-			int X = PieceX + 1;
-			int Y = PieceY - 1;
-			int BoardIndex = Y * 8 + X;
-			if (Board[BoardIndex] && (IsBlackPiece(Board[BoardIndex])) && (X < 8 && X >= 0 && Y < 8 && Y >= 0))
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
-		if (PieceY == 6)
-		{
-			int X = PieceX;
-			int Y = PieceY;
-			int BoardIndex1 = (Y - 1) * 8 + X;
-			int BoardIndex2 = (Y - 2) * 8 + X;
-			if (!Board[BoardIndex1] && !Board[BoardIndex2])
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y - 2;
-				ArrayAdd(Moves, Move);
-			}
-		}
-	}
-	if (Piece == &BPawnImage)
-	{
-		{
-			int X = PieceX;
-			int Y = PieceY + 1;
-			int BoardIndex = Y * 8 + X;
-			if (!Board[BoardIndex] && (X < 8 && X >= 0 && Y < 8 && Y >= 0))
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
-		{
-			int X = PieceX - 1;
-			int Y = PieceY + 1;
-			int BoardIndex = Y * 8 + X;
-			if (Board[BoardIndex] && (IsWhitePiece(Board[BoardIndex])) && (X < 8 && X >= 0 && Y < 8 && Y >= 0))
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
-		{
-			int X = PieceX + 1;
-			int Y = PieceY + 1;
-			int BoardIndex = Y * 8 + X;
-			if (Board[BoardIndex] && (IsWhitePiece(Board[BoardIndex])) && (X < 8 && X >= 0 && Y < 8 && Y >= 0))
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y;
-				ArrayAdd(Moves, Move);
-			}
-		}
-		if (PieceY == 1)
-		{
-			int X = PieceX;
-			int Y = PieceY;
-			int BoardIndex1 = (Y + 1) * 8 + X;
-			int BoardIndex2 = (Y + 2) * 8 + X;
-			if (!Board[BoardIndex1] && !Board[BoardIndex2])
-			{
-				move *Move = (move *) malloc(sizeof(move));
-				Move->FromX = PieceX;
-				Move->FromY = PieceY;
-				Move->ToX = X;
-				Move->ToY = Y + 2;
-				ArrayAdd(Moves, Move);
-			}
+			continue;
 		}
 	}
 }
 
-bool IsInCheck(image *Board[], color Color)
+void GetMovesForBishop(gameState *GameState, int PieceX, int PieceY, array<move> *LegalMoves)
+{
+	color OurColor = GetPieceColor(GameState->Board[PieceY][PieceX]);
+
+	// scan diagonally in down-right direction
+	for (int X = PieceX + 1, Y = PieceY + 1; X < 8 && Y < 8; ++X, ++Y)
+	{
+		if(GameState->Board[Y][X])
+		{
+			if(GetPieceColor(GameState->Board[Y][X]) != OurColor)
+			{
+				move *Move = ArrayAdd(LegalMoves);
+				// Make_move(Move, PieceX, PieceY, X, Y);
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+			}
+			break;
+		}
+		else
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+		}
+	}
+
+	// scan diagonally in down-left direction
+	for (int X = PieceX - 1, Y = PieceY + 1; X >= 0 && Y < 8; --X, ++Y)
+	{
+		if(GameState->Board[Y][X])
+		{
+			if(GetPieceColor(GameState->Board[Y][X]) != OurColor)
+			{
+				move *Move = ArrayAdd(LegalMoves);
+				// Make_move(Move, PieceX, PieceY, X, Y);
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+			}
+			break;
+		}
+		else
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+		}
+	}
+
+	// scan diagonally in top-left direction
+	for (int X = PieceX - 1, Y = PieceY - 1; X >= 0 && Y >= 0; --X, --Y)
+	{
+		if(GameState->Board[Y][X])
+		{
+			if(GetPieceColor(GameState->Board[Y][X]) != OurColor)
+			{
+				move *Move = ArrayAdd(LegalMoves);
+				// Make_move(Move, PieceX, PieceY, X, Y);
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+			}
+			break;
+		}
+		else
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+		}
+	}
+
+	// scan diagonally in top-right direction
+	for (int X = PieceX + 1, Y = PieceY - 1; X < 8 && Y >= 0; ++X, --Y)
+	{
+		if(GameState->Board[Y][X])
+		{
+			if(GetPieceColor(GameState->Board[Y][X]) != OurColor)
+			{
+				move *Move = ArrayAdd(LegalMoves);
+				// Make_move(Move, PieceX, PieceY, X, Y);
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+			}
+			break;
+		}
+		else
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+		}
+	}
+}
+
+void GetMovesForRook(gameState *GameState, int PieceX, int PieceY, array<move> *LegalMoves)
+{
+	color OurColor = GetPieceColor(GameState->Board[PieceY][PieceX]);
+
+	// scan horizontally to the right
+	for (int X = PieceX + 1, Y = PieceY; X < 8; ++X)
+	{
+		if(GameState->Board[Y][X])
+		{
+			if(GetPieceColor(GameState->Board[Y][X]) != OurColor)
+			{
+				move *Move = ArrayAdd(LegalMoves);
+				// Make_move(Move, PieceX, PieceY, X, Y);
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+			}
+			break;
+		}
+		else
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+		}
+	}
+
+	// scan horizontally to the left
+	for (int X = PieceX - 1, Y = PieceY; X >= 0; --X)
+	{
+		if(GameState->Board[Y][X])
+		{
+			if(GetPieceColor(GameState->Board[Y][X]) != OurColor)
+			{
+				move *Move = ArrayAdd(LegalMoves);
+				// Make_move(Move, PieceX, PieceY, X, Y);
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+			}
+			break;
+		}
+		else
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+		}
+	}
+
+	// scan vertically to the up
+	for (int Y = PieceY - 1, X = PieceX; Y >= 0; --Y)
+	{
+		if(GameState->Board[Y][X])
+		{
+			if(GetPieceColor(GameState->Board[Y][X]) != OurColor)
+			{
+				move *Move = ArrayAdd(LegalMoves);
+				// Make_move(Move, PieceX, PieceY, X, Y);
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+			}
+			break;
+		}
+		else
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+		}
+	}
+
+	// scan vertically to the down
+	for (int Y = PieceY + 1, X = PieceX; Y < 8; ++Y)
+	{
+		if(GameState->Board[Y][X])
+		{
+			if(GetPieceColor(GameState->Board[Y][X]) != OurColor)
+			{
+				move *Move = ArrayAdd(LegalMoves);
+				// Make_move(Move, PieceX, PieceY, X, Y);
+				Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+			}
+			break;
+		}
+		else
+		{
+			move *Move = ArrayAdd(LegalMoves);
+			// Make_move(Move, PieceX, PieceY, X, Y);
+			Make_regularMove(Move, OurColor, PieceX, PieceY, X, Y);
+		}
+	}
+}
+
+void GetMovesForPiece(gameState *GameState, int PieceX, int PieceY, array<move> *LegalMoves)
+{
+	image *Piece = GameState->Board[PieceY][PieceX];
+	// assert(GetPieceColor(Piece) == GameState->ActiveColor);
+
+	if(Piece == &WPawnImage || Piece == &BPawnImage)
+	{
+		GetMovesForPawn(GameState, PieceX, PieceY, LegalMoves);
+	}
+	else if(Piece == &WKingImage || Piece == &BKingImage)
+	{
+		GetMovesForKing(GameState, PieceX, PieceY, LegalMoves);
+	}
+	else if(Piece == &WQueenImage || Piece == &BQueenImage)
+	{
+		GetMovesForBishop(GameState, PieceX, PieceY, LegalMoves);
+		GetMovesForRook(GameState, PieceX, PieceY, LegalMoves);
+	}
+	else if(Piece == &WKnightImage || Piece == &BKnightImage)
+	{
+		GetMovesForKnight(GameState, PieceX, PieceY, LegalMoves);
+	}
+	else if(Piece == &WBishopImage || Piece == &BBishopImage)
+	{
+		GetMovesForBishop(GameState, PieceX, PieceY, LegalMoves);
+	}
+	else if(Piece == &WRookImage || Piece == &BRookImage)
+	{
+		GetMovesForRook(GameState, PieceX, PieceY, LegalMoves);
+	}
+	else
+	{
+		assert(false);
+	}
+}
+
+bool IsActivePlayerInCheck(gameState *GameState)
 {
 	bool IsCheck = false;
 
-	array<move *> OpponentsPossibleMoves; ArrayInit(&OpponentsPossibleMoves);
+	array<move> OpponentsPossibleMoves; ArrayInit(&OpponentsPossibleMoves);
 
-	bool (*IsOpponentsPiece) (image *) = (Color == WHITE) ? IsBlackPiece : IsWhitePiece;
-	image *OwnKing = (Color == WHITE) ? &WKingImage : &BKingImage;
+	bool (*IsOpponentsPiece) (image *) = (GameState->ActiveColor == WHITE) ? IsBlackPiece : IsWhitePiece;
+	image *OwnKing = (GameState->ActiveColor == WHITE) ? &WKingImage : &BKingImage;
 
 	for (int Y = 0; Y < 8; ++Y)
 	{
 		for (int X = 0; X < 8; ++X)
 		{
-			int BoardIndex = Y * 8 + X;
-			if (Board[BoardIndex] && IsOpponentsPiece(Board[BoardIndex]))
+			if (GameState->Board[Y][X] && IsOpponentsPiece(GameState->Board[Y][X]))
 			{
-				GetMovesForPiece(Board, X, Y, &OpponentsPossibleMoves);
+				GetMovesForPiece(GameState, X, Y, &OpponentsPossibleMoves);
 			}
 		}
 	}
 
-	for (int I = 0; I < OpponentsPossibleMoves.Count; ++I)
+	for (int i = 0; i < OpponentsPossibleMoves.Count; ++i)
 	{
-		move *Move = OpponentsPossibleMoves.Data[I];
-		if (Board[Move->ToY * 8 + Move->ToX] == OwnKing)
+		move *PossibleMove = &OpponentsPossibleMoves.Data[i];
+		switch(PossibleMove->Type)
 		{
-			IsCheck = true;
+			case moveType_REGULAR:
+			{
+				if(GameState->Board[PossibleMove->Regular.ToY][PossibleMove->Regular.ToX] == OwnKing)
+				{
+					IsCheck = true;
+					goto SearchFinished;
+				}
+			}
 			break;
+			case moveType_KINGSIDE_CASTLING:
+			{
+				//?
+			}
+			break;
+			case moveType_QUEENSIDE_CASTLING:
+			{
+				//?
+			}
+			break;
+			case moveType_PAWN_PROMOTION:
+			{
+				int Row = (PossibleMove->Side == WHITE) ? 0 : 7;
+				if(GameState->Board[Row][PossibleMove->PawnPromotion.ToX] == OwnKing)
+				{
+					IsCheck = true;
+					goto SearchFinished;
+				}
+			}
+			break;
+			case moveType_EN_PASSANT:
+			{
+				//?
+				// its not possible that our king is on en-passant square
+			}
+			break;
+
+			default: assert(false);
 		}
 	}
+	SearchFinished:
 
 	return IsCheck;
 }
 
+void GetLegalMovesForPiece(app* App, gameState *GameState, int PieceX, int PieceY, array<move> *LegalMoves)
+{
+	assert(GetPieceColor(GameState->Board[PieceY][PieceX]) == GameState->ActiveColor);
+
+	GetMovesForPiece(GameState, PieceX, PieceY, LegalMoves);
+	//@ why not check for checks in MakeMove()? simply not make a move, when leaves us in check
+	// we have to do it here because we need a way to get legal moves for a piece when we highlight legal moves
+	// it doesnt mean we shouldnt check for checks in MakeMove() though
+
+	// remove moves that leave us in check
+	int i = 0;
+	while(i < LegalMoves->Count)
+	{
+		move Move = LegalMoves->Data[i]; // cant be a pointer (as long as we use UnmakeLastMove() we could though)
+		// printf("%d, %d -> %d, %d -- ", Move.FromX, Move.FromY, Move.ToX, Move.ToY);
+
+		if(Move.Type == moveType_KINGSIDE_CASTLING || Move.Type == moveType_QUEENSIDE_CASTLING)
+		{
+			if(IsActivePlayerInCheck(GameState))
+			{
+				ArrayRemove(LegalMoves, i);
+				continue;
+			}
+
+			// figure out opponents color
+			color OurColor = GameState->ActiveColor;
+			color OpponentsColor = (OurColor == WHITE) ? BLACK : WHITE;
+
+			// get opponents possible moves (ignore checks)
+			array<move> OpponentsPossibleMoves; ArrayInit(&OpponentsPossibleMoves);
+			for (int Y = 0; Y < 8; ++Y)
+			{
+				for (int X = 0; X < 8; ++X)
+				{
+					if (GameState->Board[Y][X] && GetPieceColor(GameState->Board[Y][X]) == OpponentsColor)
+					{
+						GetMovesForPiece(GameState, X, Y, &OpponentsPossibleMoves);
+					}
+				}
+			}
+
+			// iterate over opponents possible moves and see if any one of them has destination square 5,7 (if we are white) or 5,0 (if we are black)
+			bool FoundMove = false;
+			for (int j = 0; j < OpponentsPossibleMoves.Count; ++j)
+			{
+				move *PossibleMove = &OpponentsPossibleMoves.Data[j];
+				switch(PossibleMove->Type)
+				{
+					case moveType_REGULAR:
+					{
+						if(
+							(Move.Type == moveType_KINGSIDE_CASTLING && OurColor == WHITE
+								&& PossibleMove->Regular.ToY == 7 && PossibleMove->Regular.ToX == 5)
+							|| (Move.Type == moveType_KINGSIDE_CASTLING && OurColor == BLACK
+								&& PossibleMove->Regular.ToY == 0 && PossibleMove->Regular.ToX == 5)
+							|| (Move.Type == moveType_QUEENSIDE_CASTLING && OurColor == WHITE
+								&& PossibleMove->Regular.ToY == 7 && PossibleMove->Regular.ToX == 3)
+							|| (Move.Type == moveType_QUEENSIDE_CASTLING && OurColor == BLACK
+								&& PossibleMove->Regular.ToY == 0 && PossibleMove->Regular.ToX == 3)
+							)
+						{
+							FoundMove = true;
+							goto SearchFinished;
+						}
+					}
+					break;
+					case moveType_KINGSIDE_CASTLING:
+					{
+						//?
+					}
+					break;
+					case moveType_QUEENSIDE_CASTLING:
+					{
+						//?
+					}
+					break;
+					case moveType_PAWN_PROMOTION:
+					{
+						int Row = (OpponentsColor == WHITE) ? 0 : 7;
+						if(Row == 7 && PossibleMove->PawnPromotion.ToX == 5)
+						{
+							FoundMove = true;
+							goto SearchFinished;
+						}
+					}
+					break;
+					case moveType_EN_PASSANT:
+					{
+						// do we even get this?
+						assert(false);
+					}
+					break;
+
+					default: assert(false);
+				}
+			}
+			SearchFinished:
+
+			// if so, we cant castle kingside
+			if(FoundMove)
+			{
+				ArrayRemove(LegalMoves, i);
+				continue;
+			}
+		}
+
+		MakeMove(App, GameState, &Move);
+		// unmakeMove Unmake = MakeMove(GameState, &Move);
+		if(IsActivePlayerInCheck(GameState))
+		{
+			// printf("check!\n");
+			ArrayRemove(LegalMoves, i);
+		}
+		else
+		{
+			// printf("ok\n");
+			i += 1;
+		}
+		// UnmakeMove(GameState, &Move, Unmake);
+		UnmakeLastMove(App);
+	}
+}
+
+#if 0
 bool IsCheckmated(image *Board[], color Color)
 {
 	bool IsCheckmated = false;
@@ -783,8 +1396,7 @@ bool IsCheckmated(image *Board[], color Color)
 		// if so, get all its possible moves
 		IsCheckmated = true;
 
-		array<move *> PossibleMoves;
-		ArrayInit(&PossibleMoves);
+		array<move *> PossibleMoves; ArrayInit(&PossibleMoves);
 	
 		bool (*IsColor) (image *) = (Color == WHITE) ? IsWhitePiece : IsBlackPiece;
 	
@@ -823,10 +1435,37 @@ bool IsCheckmated(image *Board[], color Color)
 	}
 	return IsCheckmated;
 }
+#endif
 
-bool IsInStalemate(/*image *Board[], color Color*/)
+gameOver IsGameOver(app *App, gameState *GameState)
 {
-	return false;
+	gameOver GameResult = gameOver_NOT_OVER;
+
+	array<move> LegalMoves; ArrayInit(&LegalMoves);
+	for (int Y = 0; Y < 8; ++Y)
+	{
+		for (int X = 0; X < 8; ++X)
+		{
+			if (GameState->Board[Y][X] && GetPieceColor(GameState->Board[Y][X]) == GameState->ActiveColor)
+			{
+				GetLegalMovesForPiece(App, GameState, X, Y, &LegalMoves);
+			}
+		}
+	}
+
+	if(LegalMoves.Count == 0)
+	{
+		if(IsActivePlayerInCheck(GameState))
+		{
+			GameResult = gameOver_CHECKMATE;
+		}
+		else
+		{
+			GameResult = gameOver_STALEMATE;
+		}
+	}
+
+	return GameResult;
 }
 
 void LoadPieceImage(const char *ImagePath, image *Image)
@@ -855,18 +1494,30 @@ void StartGame(app *App)
 
 //	SetUpBoard(Board, "rbBqkn2/8/8/4p3/3P4/8/8/QK4NR");
 	// SetUpBoard((image **)GameState->Board, "k7/8/8/8/8/8/8/1RQ5");
-	SetUpBoard((image **)GameState->Board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+	// SetUpBoard((image **)GameState->Board, "pp1p1p2/4P3/8/8/8/8/8/6PP");
+	SetUpBoard((image **)GameState->Board, "r1b1kb1r/8/8/8/8/8/8/R1B1KB1R");
+	// SetUpBoard((image **)GameState->Board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+
 	GameState->ActiveColor = WHITE;
 
-	// white
-	player Player1 = {playerType_COMPUTER, true}; App->Players[0] = Player1;
-	// black
-	player Player2 = {playerType_COMPUTER, false}; App->Players[1] = Player2;
+	GameState->CastlingRights[WHITE].Kingside = true;
+	GameState->CastlingRights[WHITE].Queenside = true;
+	GameState->CastlingRights[BLACK].Kingside = true;
+	GameState->CastlingRights[BLACK].Queenside = true;
+
+	GameState->EnPassantSquare.Exists = false;
+
+	App->PreviousStateExists = false;
 
 	// // white
-	// player Player1 = {playerType_HUMAN, true}; App->Players[0] = Player1;
+	// player Player1 = {playerType_COMPUTER, true}; App->Players[0] = Player1;
 	// // black
-	// player Player2 = {playerType_HUMAN, false}; App->Players[1] = Player2;
+	// player Player2 = {playerType_COMPUTER, false}; App->Players[1] = Player2;
+
+	// white
+	player Player1 = {playerType_HUMAN, true}; App->Players[0] = Player1;
+	// black
+	player Player2 = {playerType_HUMAN, false}; App->Players[1] = Player2;
 
 	// // white
 	// player Player1 = {playerType_HUMAN, true}; App->Players[0] = Player1;
@@ -928,16 +1579,41 @@ void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 		{
 			case LBUTTONDOWN:
 			{
+				if(App->DisplayPromotionDialog)
+				{
+					promotionDialog *Dialog = &App->PromotionDialog;
+
+					int LeftEdge = Dialog->X;
+					int RightEdge = Dialog->X + Dialog->Width;
+					int TopEdge = Dialog->Y;
+					int BottomEdge = Dialog->Y + Dialog->Height;
+					if(Event.X > LeftEdge && Event.X < RightEdge && Event.Y > TopEdge && Event.Y < BottomEdge)
+					{
+						int DistanceIntoDialog = Event.Y - TopEdge;
+						Dialog->PieceIndex = (promotionDialogPiece) (DistanceIntoDialog / App->TileHeight);
+					}
+					else
+					{
+						Dialog->PieceIndex = promotionDialogPiece_NO_PIECE;
+					}
+
+					break;
+				}
+
 				// printf("LBUTTONDOWN: X: %d, Y: %d\n", Event.X, Event.Y);
 				int DownX = Event.X / App->TileWidth;
 				int DownY = Event.Y / App->TileHeight;
 				if (GameState->Board[DownY][DownX])
 				{
 					App->IsDraggedPiece = true;
-					App->DraggedPiece.BoardX = DownX;
-					App->DraggedPiece.BoardY = DownY;
+					App->DraggedPiece.X = DownX;
+					App->DraggedPiece.Y = DownY;
 
-//					GetMovesForPiece(Board, PressedX, PressedY, &DraggedPieceAvailableMoves);
+					// highlight available squares for dragged piece
+					if(GetPieceColor(GameState->Board[DownY][DownX]) == GameState->ActiveColor)
+					{
+						GetLegalMovesForPiece(App, GameState, DownX, DownY, &App->DraggedPiece.AvailableMoves);
+					}
 				}
 			}
 			break;
@@ -945,157 +1621,396 @@ void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 			{
 				// printf("LBUTTONUP X: %d, Y: %d\n", Event.X, Event.Y);
 
+				if(App->DisplayPromotionDialog)
+				{
+					promotionDialogPiece PieceIndex = promotionDialogPiece_NO_PIECE;
+
+					promotionDialog *Dialog = &App->PromotionDialog;
+
+					int LeftEdge = Dialog->X;
+					int RightEdge = Dialog->X + Dialog->Width;
+					int TopEdge = Dialog->Y;
+					int BottomEdge = Dialog->Y + Dialog->Height;
+					if(Event.X > LeftEdge && Event.X < RightEdge && Event.Y > TopEdge && Event.Y < BottomEdge)
+					{
+						int DistanceIntoDialog = Event.Y - Dialog->Y;
+						PieceIndex = (promotionDialogPiece) (DistanceIntoDialog / App->TileHeight);
+					}
+
+					if(PieceIndex == Dialog->PieceIndex)
+					{
+						if(PieceIndex != promotionDialogPiece_NO_PIECE)
+						{
+							// user selected a piece
+							image *PromoteTo = Dialog->SelectablePieces[GameState->ActiveColor][PieceIndex];
+							Dialog->MoveToMake.PawnPromotion.PromoteTo = PromoteTo;
+							MakeMove(App, GameState, &App->PromotionDialog.MoveToMake);
+
+							SwitchTurn(GameState);
+						}
+
+						App->DisplayPromotionDialog = false;
+					}
+					else
+					{
+						// nothing should happen
+					}
+
+					break;
+				}
+
 				if (App->IsDraggedPiece)
 				{
-//					DraggedPieceAvailableMoves.Count = 0;
-//					for (int I = 0; I < DraggedPieceAvailableMoves.Count; ++I)
-//					{
-//						free(DraggedPieceAvailableMoves.Data[I]);
-//					}
+					App->IsDraggedPiece = false;
+					App->DraggedPiece.AvailableMoves.Count = 0;
+
+					if(Event.X < 0 || Event.Y < 0 || Event.X > App->BoardWidth || Event.Y > App->BoardHeight)
+					{
+						printf("piece outside the board\n");
+						// App->IsDraggedPiece = false;
+						break;
+					}
 
 					int UpX = Event.X / App->TileWidth;
 					int UpY = Event.Y / App->TileHeight;
-					// assert(UpX < 8 && UpY < 8);
-					// assert(UpX >= 0 && UpY >= 0);
 
-					move AttemptedMove;
-					AttemptedMove.FromX = App->DraggedPiece.BoardX;
-					AttemptedMove.FromY = App->DraggedPiece.BoardY;
-					AttemptedMove.ToX = UpX;
-					AttemptedMove.ToY = UpY;
+					// // Human attempted to make a move, but the move should be made by a computer
+					// if(App->Players[GameState->ActiveColor].PlayerType == playerType_COMPUTER)
+					// {
+					// 	printf("Next move should be made by a computer!\n");
+					// 	App->IsDraggedPiece = false;
+					// 	break;
+					// }
 
-					// Player put the piece back to its original square.
-					//@ should probably be handled by GetMoves(), its just not one of the possible moves
-					if (UpX == App->DraggedPiece.BoardX && UpY == App->DraggedPiece.BoardY)
-					{
-						App->IsDraggedPiece = false;
-						break;
-					}
+					/*
+						moveResult MoveMade = MakeMove(GameState, AttemptedMove);
+						switch(MoveMade.Status)
+						{
+							case moveStatus_UNMADE:
+							{
+								unmadeMove *Unmade = (unmadeMove *)&MoveInfo;
+								if(Unmade->WouldBeCheck)
+								{
+									// move would put/leave us in check
+								}
+								else
+								{
+									// illegal for other reasons
+								}
+							}
+							break;
+							case moveStatus_MADE:
+							{
+								madeMove *Made = (madeMove *)&MoveInfo;
+								if(Made->GameOver)
+								{
+									switch(GameOver)
+									{
+										case gameOver_CHECKMATE:
+										case gameOver_STALEMATE:
+										case gameOver_INSUFFICIENT_MATERIAL:
+										case gameOver_THREEFOLD_REPETITION:
+										case gameOver_FIFTY_MOVE_RULE:
+									}
+								}
+								else
+								{
+									// play sounds
+									Made->IsCapture, Made->IsCheck
+								}
+							}
+							break;
+							case moveStatus_INCOMPLETE:
+							{
+								// pawn promotion
+								incompleteMove *PromotionMove = (incompleteMove *)&MoveInfo;
 
-					// Human attempted to make a move, but the move should be made by a computer
-					if(App->Players[GameState->ActiveColor].PlayerType == playerType_COMPUTER)
-					{
-						printf("Next move should be made by a computer!\n");
-						App->IsDraggedPiece = false;
-						break;
-					}
+								CompletePromotion(pawnPromotion *Promotion, image *PromoteTo);
+								CancelPromotion(pawnPromotion *Promotion)
 
-					image *DraggedPiece = GameState->Board[App->DraggedPiece.BoardY][App->DraggedPiece.BoardX];
+								MakeMoveWithPromotion(gameState *GameState, move Move, image *PromoteTo)
+							}
+							break;
+						}
+					*/
+
+					image *DraggedPiece = GameState->Board[App->DraggedPiece.Y][App->DraggedPiece.X];
+					color DraggedPieceColor = GetPieceColor(DraggedPiece);
 
 					// Player moved a piece, but its not their turn (it was of wrong color)
-					if(GetPieceColor(DraggedPiece) != GameState->ActiveColor)
+					if(DraggedPieceColor != GameState->ActiveColor)
 					{
-						const char *Color = (App->GameState.ActiveColor == WHITE) ? "WHITE" : "BLACK";
+						const char *Color = (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK";
 						printf("%s's move!\n", Color);
 
-						App->IsDraggedPiece = false;
 						break;
+					}
+
+					/*
+					struct userMove
+					{
+						int FromX, FromY, ToX, ToY;
+					};
+					userMove GetUserMove(move *LegalMove)
+					?
+					*/
+					move AttemptedMove;
+					if
+					(
+						(DraggedPiece == &WKingImage
+						&& App->DraggedPiece.X == 4 && App->DraggedPiece.Y == 7
+						&& UpX == 6 && UpY == 7)
+						||
+						(DraggedPiece == &BKingImage
+						&& App->DraggedPiece.X == 4 && App->DraggedPiece.Y == 0
+						&& UpX == 6 && UpY == 0)
+					)
+					{
+						Make_kingsideCastlingMove(&AttemptedMove, DraggedPieceColor);
+					}
+					else if((DraggedPiece == &WKingImage && App->DraggedPiece.X == 4 && App->DraggedPiece.Y == 7 && UpX == 2 && UpY == 7) || (DraggedPiece == &BKingImage && App->DraggedPiece.X == 4 && App->DraggedPiece.Y == 0 && UpX == 2 && UpY == 0))
+					{
+						Make_queensideCastlingMove(&AttemptedMove, DraggedPieceColor);
+					}
+					else if((DraggedPiece == &WPawnImage && UpY == 0) || (DraggedPiece == &BPawnImage && UpY == 7))
+					{
+						Make_pawnPromotionMove(&AttemptedMove, DraggedPieceColor, App->DraggedPiece.X, UpX);
+					}
+					else if(GameState->EnPassantSquare.Exists && (DraggedPiece == &WPawnImage
+							&& UpX == GameState->EnPassantSquare.X
+							&& UpY == GameState->EnPassantSquare.Y
+							&& ((App->DraggedPiece.X == GameState->EnPassantSquare.X + 1) || (App->DraggedPiece.X == GameState->EnPassantSquare.X - 1))
+							&& App->DraggedPiece.Y == GameState->EnPassantSquare.Y + 1))
+					{
+						Make_enPassantMove(&AttemptedMove, DraggedPieceColor, App->DraggedPiece.X);
+					}
+					else if(GameState->EnPassantSquare.Exists && (DraggedPiece == &BPawnImage
+							&& UpX == GameState->EnPassantSquare.X
+							&& UpY == GameState->EnPassantSquare.Y
+							&& ((App->DraggedPiece.X == GameState->EnPassantSquare.X + 1) || (App->DraggedPiece.X == GameState->EnPassantSquare.X - 1))
+							&& App->DraggedPiece.Y == GameState->EnPassantSquare.Y - 1))
+					{
+						Make_enPassantMove(&AttemptedMove, DraggedPieceColor, App->DraggedPiece.X);
+					}
+					else
+					{
+						Make_regularMove(&AttemptedMove, DraggedPieceColor, App->DraggedPiece.X, App->DraggedPiece.Y, UpX, UpY);
 					}
 
 					// What are the possible moves?
-					array<move *> PossibleMoves; ArrayInit(&PossibleMoves);
-					GetMovesForPiece((image **)GameState->Board, App->DraggedPiece.BoardX, App->DraggedPiece.BoardY, &PossibleMoves); //@ free things
-//					for (int I = 0; I < PossibleMoves.Count; ++I)
-//					{
-//						move *PossibleMove = PossibleMoves.Data[I];
-//						printf("POSSIBLE MOVE: %d, %d\n", PossibleMove->ToX, PossibleMove->ToY);
-//					}
+					array<move> LegalMoves; ArrayInit(&LegalMoves);
+					//@ This doesnt seem to be the most efficient and useful function to use here.
+					// efficient: we dont really need all possible moves for a piece
+					// useful: we also want to know if the move would leave us in check
+					GetLegalMovesForPiece(App, GameState, App->DraggedPiece.X, App->DraggedPiece.Y, &LegalMoves);
+					// if(!IsLegalMove(GameState, &AttemptedMove)){}else{}
 
 					// Is our move a possible move?
-					bool CanMakeMove = false;
-					for (int I = 0; I < PossibleMoves.Count; ++I)
+					bool IsFoundMove = false; move FoundMove;
+					for(int i = 0; i < LegalMoves.Count; ++i)
 					{
-						move *PossibleMove = PossibleMoves.Data[I];
-						if (PossibleMove->ToX == AttemptedMove.ToX && PossibleMove->ToY == AttemptedMove.ToY)
+						move *LegalMove = &LegalMoves.Data[i];
+						// regularMove *Regular = (regularMove *)&PossibleMove->Regular;
+
+						switch(LegalMove->Type)
 						{
-							assert(PossibleMove->FromX == AttemptedMove.FromX);
-							assert(PossibleMove->FromY == AttemptedMove.FromY);
-							CanMakeMove = true;
+							case moveType_REGULAR:
+							{
+								if(AttemptedMove.Type == moveType_REGULAR && AttemptedMove.Regular.ToX == LegalMove->Regular.ToX && AttemptedMove.Regular.ToY == LegalMove->Regular.ToY)
+								{
+									// equal
+									assert(AttemptedMove.Regular.FromX == LegalMove->Regular.FromX);
+									assert(AttemptedMove.Regular.FromY == LegalMove->Regular.FromY);
+
+									FoundMove = *LegalMove;
+									IsFoundMove = true;
+									goto SearchDone;
+								}
+							}
 							break;
+							case moveType_KINGSIDE_CASTLING:
+							{
+								if(AttemptedMove.Type == moveType_KINGSIDE_CASTLING)
+								{
+									// equal
+									assert(AttemptedMove.Side == LegalMove->Side);
+
+									FoundMove = *LegalMove;
+									IsFoundMove = true;
+									goto SearchDone;
+								}
+							}
+							break;
+							case moveType_QUEENSIDE_CASTLING:
+							{
+								if(AttemptedMove.Type == moveType_QUEENSIDE_CASTLING)
+								{
+									// equal
+									assert(AttemptedMove.Side == LegalMove->Side);
+
+									FoundMove = *LegalMove;
+									IsFoundMove = true;
+									goto SearchDone;
+								}
+							}
+							break;
+							case moveType_PAWN_PROMOTION:
+							{
+								if(AttemptedMove.Type == moveType_PAWN_PROMOTION && AttemptedMove.PawnPromotion.ToX == LegalMove->PawnPromotion.ToX)
+								{
+									// equal
+									assert(AttemptedMove.Side == LegalMove->Side);
+									assert(AttemptedMove.PawnPromotion.FromX == LegalMove->PawnPromotion.FromX);
+
+									FoundMove = *LegalMove;
+									IsFoundMove = true;
+									goto SearchDone;
+								}
+							}
+							break;
+							case moveType_EN_PASSANT:
+							{
+								if(AttemptedMove.Type == moveType_EN_PASSANT && AttemptedMove.EnPassant.FromX == LegalMove->EnPassant.FromX)
+								{
+									// equal
+									assert(AttemptedMove.Side == LegalMove->Side);
+
+									FoundMove = *LegalMove;
+									IsFoundMove = true;
+									goto SearchDone;
+								}
+							}
+							break;
+
+							default: assert(false);
 						}
 					}
-					if (!CanMakeMove)
+					SearchDone:
+					ArrayFree(&LegalMoves);
+					if (!IsFoundMove)
 					{
 						printf("not a legal move!\n");
-						App->IsDraggedPiece = false;
+
 						break;
 					}
 
-					// // Alternative way to get moves:
-					//@ I think that's better
-					// unless there is some reason we want an array
-					// moveInfoSomething Moves[8][8]; // y, x
-					// GetMoveInfo(&GameState, PieceX, PieceY, Moves)
-					// maybe we want more info about the move
-					// also moves we cant make might also include why
-					// if(Moves[UpY][UpX]) {
-					// 	// can make the move
-					// } else {
-					// 	// nope
-					// }
-
-					image *PossibleCapturedPiece = MakeMove(GameState, &AttemptedMove);
-
-					if (IsInCheck((image **)GameState->Board, GameState->ActiveColor))
+					if(FoundMove.Type == moveType_PAWN_PROMOTION)
 					{
-						// The user attempted a move that leaves their king in check.
-						// Play some sound / animation maybe.
+						App->DisplayPromotionDialog = true;
 
-						UnmakeMove(GameState, &AttemptedMove, PossibleCapturedPiece);
+						promotionDialog *Dialog = &App->PromotionDialog;
+						if(GameState->ActiveColor == WHITE)
+						{
+							Dialog->X = FoundMove.PawnPromotion.ToX * App->TileWidth;
+							// Dialog->Y = AttemptedMove.ToY * App->TileHeight;
+							Dialog->Y = 0;
+						}
+						else
+						{
+							assert(GameState->ActiveColor == BLACK);
+							Dialog->X = FoundMove.PawnPromotion.ToX * App->TileWidth;
+							Dialog->Y = (8 - 4) * App->TileHeight;
+							// Dialog->Y = (AttemptedMove.ToY - 3) * App->TileHeight;
+						}
+						Dialog->Width = App->TileWidth;
+						Dialog->Height = App->TileHeight * 4;
+						// Dialog->Color = GameState->ActiveColor;
+						Dialog->MoveToMake = FoundMove;
 
-						const char *Color = (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK";
-						printf("this move would leave %s in check!\n", Color);
-
-						App->IsDraggedPiece = false;
 						break;
 					}
 
-					App->IsDraggedPiece = false;
+					// // bool PossibleMovesForPiece[8][8];
+					// moveBits LegalMoves[8][8];
+					// GetLegalMovesForPiece(GameState, AttemptedMove.FromX, AttemptedMove.FromY, LegalMoves);
+					// moveBits MoveInfo = LegalMoves[AttemptedMove.ToY][AttemptedMove.ToX];
+					// if(!(MoveInfo & moveBits_LEGAL_MOVE))
+					// {
+					// 	printf("illegal move!\n");
+
+					// 	if(MoveInfo & moveBits_WOULD_BE_CHECK)
+					// 	{
+					// 		// play sound, animation?
+					// 	}
+
+					// 	App->IsDraggedPiece = false;
+					// 	break;
+					// }
+					// printf("legal move\n");
+
+					MakeMove(App, GameState, &FoundMove);
+					image *CapturedPiece = NULL;
+					// UnmakeLastMove(App);
+					// // UnmakeLastMove(App);
+					// MakeMove(App, GameState, MoveWeCanMake);
+
+					// if (IsInCheck((image **)GameState->Board, GameState->ActiveColor))
+					// {
+					// 	// The user attempted a move that leaves their king in check.
+					// 	// Play some sound / animation maybe.
+
+					// 	UnmakeMove(GameState, &AttemptedMove, PossibleCapturedPiece);
+
+					// 	const char *Color = (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK";
+					// 	printf("this move would leave %s in check!\n", Color);
+
+					// 	App->IsDraggedPiece = false;
+					// 	break;
+					// }
 
 					SwitchTurn(GameState);
 
-					// gameOver GameOver = IsGameOver(App->GameState)
-					// if(GameOver)
-					// {
-					// 	if(GameOver == gameOver_CHECKMATE)
-					// 	{
-					// 		//
-					// 	}
-					// 	// if(GameOver == gameOver_STALEMATE) {}
-					// 	// if(GameOver == gameOver_INSUFFICIENT_MATERIAL) {}
-					// 	// if(GameOver == gameOver_FIFTYTH_MOVE_RULE) {}
-					// 	// if(GameOver == gameOver_THREEFOLD_REPETITION_RULE) {}
-					// }
-					// else
-					// {
-					// 	//
-					// }
-
-					// The opponent could be a computer or a human. If human, then this will be ignored:
-					App->Players[GameState->ActiveColor].ComputerCalculateMove = true;
-
-					// check if it was a check / checkmate
 					bool Check = false;
-					if (IsInCheck((image **)GameState->Board, GameState->ActiveColor))
+					if(IsActivePlayerInCheck(GameState))
 					{
-						printf("%s is in check!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
+						printf("CHECK!\n");
 						Check = true;
 					}
-					printf("%s's move...\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
+
+					gameOver GameOver = IsGameOver(App, GameState);
+					if(GameOver)
+					{
+						if(GameOver == gameOver_CHECKMATE)
+						{
+							printf("game over: checkmate\n");
+						}
+						if(GameOver == gameOver_STALEMATE)
+						{
+							printf("game over: stalemate\n");
+						}
+						// if(GameOver == gameOver_INSUFFICIENT_MATERIAL) {}
+						// if(GameOver == gameOver_FIFTYTH_MOVE_RULE) {}
+						// if(GameOver == gameOver_THREEFOLD_REPETITION_RULE) {} // number of possible board configurations is larger than possible bit configurations in 64-bits.
+
+						App->Mode = appMode_POSTGAME;
+						break;
+					}
+
+					// // The opponent could be a computer or a human. If human, then this will be ignored:
+					// App->Players[GameState->ActiveColor].ComputerCalculateMove = true;
+
+					// // check if it was a check / checkmate
+					// bool Check = false;
+					// if (IsInCheck((image **)GameState->Board, GameState->ActiveColor))
+					// {
+					// 	printf("%s is in check!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
+					// 	Check = true;
+					// }
+					// printf("%s's move...\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
 
 					// Play sound
 					playingSound *PlayingSound = (playingSound *) malloc(sizeof(playingSound));
-					PlayingSound->Sound = Check ? &CheckSound : (PossibleCapturedPiece ? &CaptureSound : &MoveSound);
+					PlayingSound->Sound = Check ? &CheckSound : (CapturedPiece ? &CaptureSound : &MoveSound);
 					PlayingSound->NumSamplesPlayed = 0;
 					PlayingSound->IsLooping = false;
 					PlayingSounds.append(PlayingSound);
 
-					if (IsCheckmated((image **)GameState->Board, GameState->ActiveColor))
-					{
-						printf("%s is checkmated!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
-						App->Mode = appMode_POSTGAME;
-						break;
-					}
+					// if (IsCheckmated((image **)GameState->Board, GameState->ActiveColor))
+					// {
+					// 	printf("%s is checkmated!\n", (GameState->ActiveColor == WHITE) ? "WHITE" : "BLACK");
+					// 	App->Mode = appMode_POSTGAME;
+					// 	break;
+					// }
 				}
 				else
 				{
@@ -1110,6 +2025,7 @@ void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 		}
 	}
 
+#if 0
 	// Computer's move.
 	player *ActivePlayer = &App->Players[GameState->ActiveColor];
 	if(ActivePlayer->PlayerType == playerType_COMPUTER)
@@ -1146,15 +2062,15 @@ void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 				int Index = (RandIndex + i) % ComputerPossibleMoves.Count;
 				move *PlausableMove = ComputerPossibleMoves.Data[Index];
 
-				image *PossibleCapturedPiece = MakeMove(GameState, PlausableMove);
+				unmakeMove Unmake = MakeMove(GameState, PlausableMove);
 				if (IsInCheck((image **)GameState->Board, GameState->ActiveColor))
 				{
-					UnmakeMove(GameState, PlausableMove, PossibleCapturedPiece);
+					UnmakeMove(GameState, PlausableMove, Unmake);
 					
 					continue;
 				}
 
-				UnmakeMove(GameState, PlausableMove, PossibleCapturedPiece);
+				UnmakeMove(GameState, PlausableMove, Unmake);
 				
 				ComputerMove = PlausableMove;
 				MovedPiece = GameState->Board[PlausableMove->FromY][PlausableMove->FromX];
@@ -1175,12 +2091,16 @@ void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 		// // time ->
 		// // [calc move] -> [simulate thinking] -> [animate move] -> and finally make the move
 	}
-
+#endif
 	// Render background
 	u32 Light = 0x00efd9b7;
 	u32 Dark = 0x00b58965;
-	u32 TileWidth = WindowBuffer->Width / 8;
-	u32 TileHeight = WindowBuffer->Height / 8;
+	// u32 Light = 0x00ffffff;
+	// u32 Dark = 0x00000000;
+	// u32 TileWidth = WindowBuffer->Width / 8;
+	// u32 TileHeight = WindowBuffer->Height / 8;
+	uint32_t TileWidth = App->TileWidth;
+	uint32_t TileHeight = App->TileHeight;
 	for (i32 Y = 0; Y < 8; ++Y)
 	{
 		for (i32 X = 0; X < 8; ++X)
@@ -1195,23 +2115,150 @@ void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 	{
 		for (int X = 0; X < 8; ++X)
 		{
-			if (GameState->Board[Y][X] && !(App->IsDraggedPiece && App->DraggedPiece.BoardX == X && App->DraggedPiece.BoardY == Y))
+			if (GameState->Board[Y][X] && !(App->IsDraggedPiece && App->DraggedPiece.X == X && App->DraggedPiece.Y == Y))
 			{
-				RenderImage(WindowBuffer, GameState->Board[Y][X], X * 60, Y * 60);
+				// RenderImage(WindowBuffer, GameState->Board[Y][X], X * 60, Y * 60);
+				RenderImage(WindowBuffer, GameState->Board[Y][X], X * TileWidth, Y * TileHeight);
 			}
 		}
 	}
 
-//		// highlight available squares for dragged piece
-//		for (int I = 0; I < DraggedPieceAvailableMoves.Count; ++I)
-//		{
-//			move *Move = DraggedPieceAvailableMoves.Data[I];
-//			int SquareWidth = 20;
-//			int SquareHeight = 20;
-//			int X = Move->ToX * TileWidth + TileWidth / 2 - SquareWidth / 2;
-//			int Y = Move->ToY * TileHeight + TileHeight / 2 - SquareHeight / 2;
-//			RenderRectangle(Pixels, X, Y, SquareWidth, SquareHeight, 0x00ff0000);
-//		}
+	if(App->DisplayPromotionDialog)
+	{
+		promotionDialog *Dialog = &App->PromotionDialog;
+
+		RenderRectangle(WindowBuffer, Dialog->X, Dialog->Y, Dialog->Width, Dialog->Height, 0xffffffff);
+		// RenderRectangle(WindowBuffer, App->PromotionDialogX, App->PromotionDialogY, App->TileWidth, 4 * App->TileHeight, 0xff000000);
+		if(GameState->ActiveColor == WHITE)
+		{
+			RenderImage(WindowBuffer, &WQueenImage, Dialog->X, Dialog->Y);
+			RenderImage(WindowBuffer, &WKnightImage, Dialog->X, Dialog->Y + TileHeight);
+			RenderImage(WindowBuffer, &WBishopImage, Dialog->X, Dialog->Y + 2 * TileHeight);
+			RenderImage(WindowBuffer, &WRookImage, Dialog->X, Dialog->Y + 3 * TileHeight);
+		}
+		else
+		{
+			RenderImage(WindowBuffer, &BQueenImage, Dialog->X, Dialog->Y);
+			RenderImage(WindowBuffer, &BKnightImage, Dialog->X, Dialog->Y + TileHeight);
+			RenderImage(WindowBuffer, &BBishopImage, Dialog->X, Dialog->Y + 2 * TileHeight);
+			RenderImage(WindowBuffer, &BRookImage, Dialog->X, Dialog->Y + 3 * TileHeight);
+		}
+	}
+
+	// highlight available squares for dragged piece
+	for (int I = 0; I < App->DraggedPiece.AvailableMoves.Count; ++I)
+	{
+		move *Move = &App->DraggedPiece.AvailableMoves.Data[I];
+
+		int MoveX, MoveY;
+		uint32_t Color = 0x00ff0000;
+		switch(Move->Type)
+		{
+			case moveType_REGULAR:
+			{
+				MoveX = Move->Regular.ToX;
+				MoveY = Move->Regular.ToY;
+			}
+			break;
+			case moveType_KINGSIDE_CASTLING:
+			{
+				if(Move->Side == WHITE)
+				{
+					MoveX = 6;
+					MoveY = 7;
+				}
+				else
+				{
+					assert(Move->Side == BLACK);
+					MoveX = 6;
+					MoveY = 0;
+				}
+			}
+			break;
+			case moveType_QUEENSIDE_CASTLING:
+			{
+				if(Move->Side == WHITE)
+				{
+					MoveX = 2;
+					MoveY = 7;
+				}
+				else
+				{
+					assert(Move->Side == BLACK);
+					MoveX = 2;
+					MoveY = 0;
+				}
+			}
+			break;
+			case moveType_PAWN_PROMOTION:
+			{
+				if(Move->Side == WHITE)
+				{
+					MoveX = Move->PawnPromotion.ToX;
+					MoveY = 0;
+				}
+				else
+				{
+					assert(Move->Side == BLACK);
+					MoveX = Move->PawnPromotion.ToX;
+					MoveY = 7;
+				}
+				Color = 0x0000ff00;
+			}
+			break;
+			case moveType_EN_PASSANT:
+			{
+				MoveX = GameState->EnPassantSquare.X;
+				MoveY = GameState->EnPassantSquare.Y;
+			}
+			break;
+
+			default: assert(false);
+		}
+		int SquareWidth = 20;
+		int SquareHeight = 20;
+		int X = MoveX * TileWidth + TileWidth / 2 - SquareWidth / 2;
+		int Y = MoveY * TileHeight + TileHeight / 2 - SquareHeight / 2;
+		RenderRectangle(WindowBuffer, X, Y, SquareWidth, SquareHeight, Color);
+	}
+
+	if(App->IsGameDebugMode)
+	{
+		int SquareWidth = 10;
+		int SquareHeight = 10;
+		uint32_t Color = 0x0000ff00;
+		int X, Y;
+		if(GameState->EnPassantSquare.Exists)
+		{
+			X = GameState->EnPassantSquare.X * TileWidth + TileWidth / 2 - SquareWidth / 2;
+			Y = GameState->EnPassantSquare.Y * TileHeight + TileHeight / 2 - SquareHeight / 2;
+			RenderRectangle(WindowBuffer, X, Y, SquareWidth, SquareHeight, 0x00330033);
+		}
+		if(GameState->CastlingRights[WHITE].Kingside)
+		{
+			X = 6 * TileWidth + TileWidth / 2 - SquareWidth / 2;
+			Y = 7 * TileHeight + TileHeight / 2 - SquareHeight / 2;
+			RenderRectangle(WindowBuffer, X, Y, SquareWidth, SquareHeight, Color);
+		}
+		if(GameState->CastlingRights[WHITE].Queenside)
+		{
+			X = 2 * TileWidth + TileWidth / 2 - SquareWidth / 2;
+			Y = 7 * TileHeight + TileHeight / 2 - SquareHeight / 2;
+			RenderRectangle(WindowBuffer, X, Y, SquareWidth, SquareHeight, Color);
+		}
+		if(GameState->CastlingRights[BLACK].Kingside)
+		{
+			X = 6 * TileWidth + TileWidth / 2 - SquareWidth / 2;
+			Y = 0 * TileHeight + TileHeight / 2 - SquareHeight / 2;
+			RenderRectangle(WindowBuffer, X, Y, SquareWidth, SquareHeight, Color);
+		}
+		if(GameState->CastlingRights[BLACK].Queenside)
+		{
+			X = 2 * TileWidth + TileWidth / 2 - SquareWidth / 2;
+			Y = 0 * TileHeight + TileHeight / 2 - SquareHeight / 2;
+			RenderRectangle(WindowBuffer, X, Y, SquareWidth, SquareHeight, Color);
+		}
+	}
 
 	i32 MouseX = Input->LastMouseX;
 	i32 MouseY = Input->LastMouseY;
@@ -1219,9 +2266,10 @@ void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 	// If we have a dragged piece, render it
 	if (App->IsDraggedPiece)
 	{
-		RenderImage(WindowBuffer, GameState->Board[App->DraggedPiece.BoardY][App->DraggedPiece.BoardX], MouseX - 30, MouseY - 30);
+		assert(GameState->Board[App->DraggedPiece.Y][App->DraggedPiece.X]);
+		RenderImage(WindowBuffer, GameState->Board[App->DraggedPiece.Y][App->DraggedPiece.X], MouseX - 30, MouseY - 30);
 	}
-
+#if 0
 	if (App->PlayingAnimation)
 	{
 		animation* A = App->PlayingAnimation;
@@ -1245,7 +2293,8 @@ void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 			App->PlayingAnimation = NULL;
 
 			GameState->Board[A->Move.FromY][A->Move.FromX] = A->Piece;
-			image *PossibleCapturedPiece = MakeMove(GameState, &A->Move);
+			unmakeMove Unmake = MakeMove(GameState, &A->Move);
+			image *PossibleCapturedPiece = Unmake.CapturedPiece;
 
 			SwitchTurn(GameState);
 
@@ -1277,6 +2326,7 @@ void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 			}
 		}
 	}
+#endif
 }
 
 void UpdatePostGame(app *App, image *WindowBuffer, userInput *Input)
@@ -1317,6 +2367,23 @@ void InitApp()
 {
 	App.TileWidth = 60;
 	App.TileHeight = 60;
+	App.BoardWidth = App.TileWidth * 8;
+	App.BoardHeight = App.TileHeight * 8;
+
+	App.DisplayPromotionDialog = false;
+
+	App.PromotionDialog.SelectablePieces[WHITE][0] = &WQueenImage;
+	App.PromotionDialog.SelectablePieces[WHITE][1] = &WKnightImage;
+	App.PromotionDialog.SelectablePieces[WHITE][2] = &WBishopImage;
+	App.PromotionDialog.SelectablePieces[WHITE][3] = &WRookImage;
+	App.PromotionDialog.SelectablePieces[BLACK][0] = &BQueenImage;
+	App.PromotionDialog.SelectablePieces[BLACK][1] = &BKnightImage;
+	App.PromotionDialog.SelectablePieces[BLACK][2] = &BBishopImage;
+	App.PromotionDialog.SelectablePieces[BLACK][3] = &BRookImage;
+
+	ArrayInit(&App.DraggedPiece.AvailableMoves);
+
+	App.IsGameDebugMode = true;
 
 	// const char *SoundExt = "wav";
 	// const char *SoundPrefix = "sounds/";
