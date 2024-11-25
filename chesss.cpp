@@ -2020,7 +2020,7 @@ void UpdateGame(app *App, image *WindowBuffer, userInput *Input)
 			break;
 			default:
 			{
-				assert(false);
+				// assert(false);
 			}
 		}
 	}

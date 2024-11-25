@@ -174,6 +174,62 @@ int main()
 
 	// return 0;
 
+	/*
+		In C++ you can do this:
+			char *get_some_string()
+			void get_some_string(char *Buffer, unsigned int BufferLength)
+		Former allocates memory, the latter does not.
+
+		void parent_path(char *path)
+			-- changes the path in place
+
+		void parent_path(const char *path, char *parent_path, unsigned int parent_path_len)
+			-- put 'parent path' into a new buffer
+
+		char *parent_path(const char *path)
+			-- allocates memory for 'parent path'
+
+		Problem is that the first and third have the same signature, there is no way to tell the compiler which one is being called. i dont think
+
+		void parent_path(char *path)
+		char *parent_path(char *path)
+		Is it going to change the path in place or return a new copy?
+	*/
+
+	/*
+	"/home/janedoe/jane'sfile" (absolute path)
+	"./jane'sfile" (relative path)
+	-- how long can the file(and directory)(-base-)names be? how many levels of nesting can there be?
+
+	"../janedoe/../janedoe/.." (path with '..'s) -- there is no limit to how long this can be
+
+	filesystem has to keep structured data on disk which describes the filesystem, so that file-data can be accessed and direcotries can be explored. more directories you have, more data they need to store. ultimately, as your filesystem data structures grow larger, you run out of disk space. so, given that any given disk can only store up to certain amount of data and no more, then the size of the disk does set an actual limit to how long a pathname can be. but nothing stops us from stacking multiple disks together and using some technology to make one filesystem span across multiple physical disks. how many disks at white storage capacity can be produced? how much storage cpacity can be produced and formatted using a single file system? what is this number?
+
+	How long a path can be depends on the directory structure. But as far as I can see, there is no limit. There is no limit other than what is set by the filesystem. Or filename is very long.
+	Windows limits file paths to 256 characters? D:\[256 chars]<NUL>
+	*/
+	// const unsigned int MaxPathWeUse = 1024;
+
+	// char ExecutablePath[MaxPathWeUse];
+	// if(get_executable_path(ExecutablePath, MaxPathWeUse))
+	// {
+	// 	path_make_parent(ExecutablePath);
+	// 	if(chdir(ExecutablePath) == 0)
+	// 	{
+	// 		// we successfully changed the current working directory
+	// 	}
+	// 	else
+	// 	{
+	// 		// we failed to change the current working directory
+	// 		assert(false);
+	// 	}
+	// }
+	// else
+	// {
+	// 	// we failed to get the executable path
+	// 	assert(false);
+	// }
+
 	// Make sure current working directory is the directory which contains the executable. (This might not be the case when the executable is executed through a symbolic link or through a Bash-shell from a different directory)
 	const int exe_path_size = 1024; // allegedly MAX_PATH is not particularly trustworthy
 	char exe_path[exe_path_size];
@@ -182,15 +238,15 @@ int main()
 		fprintf(stderr, "failed\n");
 		return 1;
 	}
-	char *parent_path = get_parent_path_noalloc(exe_path);
+	char *parent_path = get_parent_path_noalloc(exe_path); //@
 	chdir(parent_path);
 	printf("Changed CWD to \"%s\"\n", parent_path);
 
-	Display *Connection = XOpenDisplay(NULL);
-	Window DefaultRootWindow = XDefaultRootWindow(Connection);
-	int DefaultScreen = XDefaultScreen(Connection);
-	Visual *DefaultVisual = XDefaultVisual(Connection, DefaultScreen);
-	int DefaultDepth = XDefaultDepth(Connection, DefaultScreen);
+	Display *Connection        = XOpenDisplay       (NULL);
+	Window   DefaultRootWindow = XDefaultRootWindow (Connection);
+	int      DefaultScreen     = XDefaultScreen     (Connection);
+	Visual  *DefaultVisual     = XDefaultVisual     (Connection, DefaultScreen);
+	int      DefaultDepth      = XDefaultDepth      (Connection, DefaultScreen);
 	// int DisplayPlanes = XDisplayPlanes(Connection, DefaultScreen);
 
 //	u8 *Data = (u8 *) malloc(4 * WindowWidth * WindowHeight);
@@ -240,6 +296,7 @@ int main()
 		return 1;
 	}
 
+	/*@ On my Arch Linux machine, on first try, I got an error: "ALSA lib pcm.c:8924:(snd_pcm_set_params) Unable to set hw params for PLAYBACK: Input/output error", but it worked fine the following times. Maybe do multiple tries before we give up?*/
 	if (snd_pcm_set_params(SoundHandle, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, NumChannels, SamplesPerSecond, 0, Latency))
 	{
 		fprintf(stderr, "Error: snd_pcm_set_params()\n");
@@ -278,8 +335,7 @@ int main()
 		}
 		FrameCount += 1;
 
-		userInput GameInput;
-		ArrayInit(&GameInput.Events);
+		userInput GameInput; ArrayInit(&GameInput.Events);
 
 		// once in a while take long time to generate a frame to test our capability to recover from EPIPE (underrun) error
 //		if (FrameCount % 30 == 0)
